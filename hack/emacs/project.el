@@ -127,6 +127,7 @@ it blindly to other people's files can cause enormously messy diffs!"
   (local-set-key (kbd "C-c C-g") 'go-goto-imports)))
 (add-hook 'go-mode-hook '(lambda ()
   (local-set-key (kbd "C-c C-k") 'godoc)))
+(load (concat top-path "/hack/emacs/oracle.el"))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 

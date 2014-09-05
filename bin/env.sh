@@ -1,7 +1,16 @@
 #!/bin/bash
 
-export GOPATH=~/go
-export PATH=~/go/bin:$PATH
+PROJECT="github.com/qorio/maestro"
+
+if [ ! -d "$HOME/go/src/$PROJECT" ]; then
+    echo "Creating $HOME/go as the root of go development and set up symlinks to point to this directory."
+    IFS='/' read -a proj <<< "$PROJECT"
+    mkdir -p $HOME/go/src/${proj[0]}/${proj[1]}
+    ln -s $(pwd) $HOME/go/src/${proj[0]}/${proj[1]}/${proj[2]}
+fi
+
+export GOPATH=$HOME/go
+export PATH=$HOME/go/bin:$PATH
 
 # Godep dependency manager
 if [[ $(which godep) == "" ]]; then
