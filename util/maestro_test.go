@@ -28,33 +28,34 @@ build:
      dockerfile: docker/shorty/Dockerfile
      image: qorio/shorty:0.1
 
-# docker objects are bound with build and resource objects
+# docker objects reference the build of the same name.
+# also, the host object is mapped to the scope of the docker object so host mounts are referenceable
 docker:
   passport:
       ssh:
-         - docker run -d -p  -t # steps
+         - docker run -d -p 5050:5050 -v {{.host.mounts.config}}/omni:/static/conf --name passport {{.image}}
 
   shorty:
       ssh:
-        - docker run -p -t # steps
+         - docker run -d -p 5050:5050 -v {{.host.mounts.config}}/omni:/static/conf --name shorty {{.image}}
 
   mongodb:
       image: mongo:2.7.5
       ssh:
-        - docker run -d -p 27017:27017 -v {{.resource.disk.mongo-db.mount}}:/data/db --name mongodb {{.image}}
+        - docker run -d -p 27017:27017 -v {{.host.mounts.db}}/mongo:/data/db --name mongodb {{.image}}
 
   redis:
       image: redis:2.8.13
       ssh:
-        - docker run -d -p 6379:6379 -v {{.resource.disk.redisdb-stage.mount}}:/data
-          -v /some/redis/redis.conf:/etc/redis/redis.conf:ro --name redis {{.image}} redis-server
+        - docker run -d -p 6379:6379 -v {{.host.mounts.db}}:/data
+          -v {{.host.mounts.config}}/redis/redis.conf:/etc/redis/redis.conf:ro --name redis {{.image}} redis-server
 
   redis-prod:
       image: redis:2.8.13
       ssh:
         - >
           docker run -d -p 6379:6379 -v {{.resource.disk.redisdb-prod.mount}}:/data
-           -v /some/redis/redis.conf:/etc/redis/redis.conf:ro --name redis {{.image}} redis-server
+           -v {{.host.mounts.config}}/redis/redis.conf:/etc/redis/redis.conf:ro --name redis {{.image}} redis-server
 
   nginx:
       image: nginx:1.7.1
@@ -65,47 +66,65 @@ docker:
 service:
 
   passport:
-      - monogdb
-      - passport
+      monogdb: db
+      passport: dev
 
   passport-prod:
-      - monogdb-prod
-      - passport
-      - nginx
+      - monogdb-prod: prod-db
+      - passport: prod
+      - nginx: lb
 
 
 resource:
 
-  host:
+  disk:
+
+    dev-configs:
+      cloud: gce
+      type: disk
+      size: 50MB
+
+    dev-db:
+      cloud: gce
+      type: disk
+      size: 100MB
+
+    prod-configs:
+      cloud: gce
+      type: ssd
+      size: 100MB
+
+    prod-db:
+      cloud: gce
+      type: ssd
+      size: 100GB
+
+  instance:
+
     gce-host-0:
       cloud: gce
       ip: 127:0:1:1
+      labels: prod, prod-mongodb
+      mounts:
+        config: prod-configs => /config
+        db: prod-db => /data
 
     gce-host-1:
       cloud: gce
+      machine-type: n1-standard-1
+      zone: us-west
       ip: 127:0:0:1
+      labels: prod, lb
+      mounts:
+        config: prod-configs => /config
 
-  disk:
-
-    mongodb-prod:
-      name: gce-ssd-1
-      host: gce-host-1
-      mount: /data
-
-    mongodb-stage:
-      name: gce-ssd-0
-      host: gce-host-0
-      mount: /data
-
-    redisdb-prod:
-      name: gce-ssd-1
-      host: gce-host-1
-      mount: /data
-
-    redisdb-stage:
-      name: gce-ssd-0
-      host: gce-host-0
-      mount: /data
+    gce-host-2:
+      cloud: gce
+      ip: 127:0:1:1
+      labels: dev, stage, db
+      mounts:
+        config: dev-config => /config
+        db: dev-mongodb => /data
 `
 
 func Test(t *testing.T) { TestingT(t) }
