@@ -3,6 +3,11 @@
 	"GoVersion": "go1.3.1",
 	"Deps": [
 		{
+			"ImportPath": "code.google.com/p/go.crypto/ssh",
+			"Comment": "null-221",
+			"Rev": "6e881b5273dfffbadb6a76a61d3c39a71e3588d1"
+		},
+		{
 			"ImportPath": "gopkg.in/yaml.v1",
 			"Rev": "feb4ca79644e8e7e39c06095246ee54b1282c118"
 		}

@@ -103,7 +103,7 @@ resource:
 
     gce-host-0:
       cloud: gce
-      ip: 127:0:1:1
+      internal-ip: 127:0:1:1
       labels: prod, prod-mongodb
       mounts:
         config: prod-configs => /config
@@ -113,27 +113,27 @@ resource:
       cloud: gce
       machine-type: n1-standard-1
       zone: us-west
-      ip: 127:0:0:1
+      internal-ip: 127:0:0:1
       labels: prod, lb
       mounts:
         config: prod-configs => /config
 
     gce-host-2:
       cloud: gce
-      ip: 127:0:1:1
+      internal-ip: 127:0:1:1
       labels: dev, stage, db
       mounts:
         config: dev-config => /config
         db: dev-mongodb => /data
 `
 
-func Test(t *testing.T) { TestingT(t) }
+func TestYaml(t *testing.T) { TestingT(t) }
 
-type suite struct{}
+type YamlTests struct{}
 
-var _ = Suite(&suite{})
+var _ = Suite(&YamlTests{})
 
-func (suite *suite) TestSampleDoc(c *C) {
+func (suite *YamlTests) TestSampleDoc(c *C) {
 
 	config := make(map[interface{}]interface{})
 	err := yaml.Unmarshal([]byte(test_yml), &config)
