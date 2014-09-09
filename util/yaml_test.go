@@ -166,15 +166,6 @@ type YamlTests struct{}
 
 var _ = Suite(&YamlTests{})
 
-func (suite *YamlTests) TestParsing(c *C) {
-	config := make(map[interface{}]interface{})
-	err := yaml.Unmarshal([]byte(test_yml), &config)
-	c.Assert(err, Equals, nil)
-	text, err := yaml.Marshal(&config)
-	c.Log(string(text))
-	c.Assert(err, Equals, nil, Commentf("Error marshaling"))
-}
-
 func (suite *YamlTests) TestLoadArtifactSection(c *C) {
 
 	doc := struct {

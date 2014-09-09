@@ -2,6 +2,7 @@ package util
 
 import (
 	. "gopkg.in/check.v1"
+	"os"
 	"testing"
 )
 
@@ -61,6 +62,9 @@ func (suite *SSHTests) TestSshExecute(c *C) {
 }
 
 func (suite *SSHTests) TestSshAgent(c *C) {
+	if os.Getenv("SKIP_SSH_AGENT_TEST") == "true" {
+		return
+	}
 
 	auth, err := SshAgentAuthMethod()
 	c.Assert(err, Equals, nil)

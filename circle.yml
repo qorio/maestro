@@ -20,6 +20,7 @@ machine:
     DOCKER_ACCOUNT: lab616
     DOCKER_EMAIL: davidc616@gmail.com
     DOCKER_AUTH: bGFiNjE2OmxhYjYxNg==
+    SKIP_SSH_AGENT_TEST: true
 
 ## Customize dependencies
 dependencies:
