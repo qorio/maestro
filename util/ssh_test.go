@@ -41,6 +41,9 @@ jguW8+VwAv/kUCFWyXJoE9HELvjkUlETGBkPU/0VAK99eWylMbNOjR3Ow9cCbZrr
 Ln2N5VFmCszDwgXpzVxvND2Wud5Omg1C2OsWesE62GOR7z1dbcDkCg==
 -----END RSA PRIVATE KEY-----`
 
+// Server is in
+// https://console.developers.google.com/project/apps~elite-beacon-697/compute/instancesDetail/zones/us-central1-a/instances/test1
+
 const gce_test_server = "146.148.41.142"
 const gce_test_user = "test"
 

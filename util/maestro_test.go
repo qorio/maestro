@@ -13,24 +13,45 @@ global:
   DOCKER_EMAIL: davidc616@gmail.com
   DOCKER_AUTH: bGFiNjE2OmxhYjYxNgc==
 
-build:
- passport:
-     project: qorio/omni
-     build_number: 292
-     artifact: passport
+artifact:
+  passport:
+    project: qorio/omni
+    server: circleci
+    build_number: 292
+    artifact: passport
+    platform: linux_amd64
+
+  shorty:
+    project: qorio/omni
+    server: circleci
+    build_number: 292
+    platform: linux_amd64
+    artifact: shorty
+
+  geoip:
+    project: qorio/omni
+    server: circleci
+    build_number: 292
+    platform: *
+    artifact: GeoLiteCity.dat
+
+docker:
+  passport:
      dockerfile: docker/passport/Dockerfile
      image: qorio/passport:0.1
+     artifacts:
+       passport: /root
 
- shorty:
-     project: qorio/omni
-     build_number: 292
-     artifact: shorty
-     dockerfile: docker/shorty/Dockerfile
-     image: qorio/shorty:0.1
+  shorty:
+    dockerfile: docker/shorty/Dockerfile
+    image: qorio/shorty:0.1
+     artifacts:
+       geoip: /root
+       shorty: /root
 
 # docker objects reference the build of the same name.
 # also, the host object is mapped to the scope of the docker object so host mounts are referenceable
-docker:
+container:
   passport:
       ssh:
          - docker run -d -p 5050:5050 -v {{.host.mounts.config}}/omni:/static/conf --name passport {{.image}}
@@ -103,6 +124,7 @@ resource:
 
     gce-host-0:
       cloud: gce
+      project: qoriolabsdev
       internal-ip: 127:0:1:1
       labels: prod, prod-mongodb
       mounts:
@@ -111,6 +133,7 @@ resource:
 
     gce-host-1:
       cloud: gce
+      project: qoriolabsdev
       machine-type: n1-standard-1
       zone: us-west
       internal-ip: 127:0:0:1
@@ -120,6 +143,7 @@ resource:
 
     gce-host-2:
       cloud: gce
+      project: qoriolabsdev
       internal-ip: 127:0:1:1
       labels: dev, stage, db
       mounts:
