@@ -8,6 +8,10 @@
 			"Rev": "6e881b5273dfffbadb6a76a61d3c39a71e3588d1"
 		},
 		{
+			"ImportPath": "gopkg.in/check.v1",
+			"Rev": "91ae5f88a67b14891cfd43895b01164f6c120420"
+		},
+		{
 			"ImportPath": "gopkg.in/yaml.v1",
 			"Rev": "feb4ca79644e8e7e39c06095246ee54b1282c118"
 		}
