@@ -38,23 +38,27 @@ service:
 artifact:
   passport:
     project: qorio/omni
-    server: circleci
+    source: circleci
     build_number: {{.BUILD_NUMBER}}
     artifact: passport
     platform: linux_amd64
 
   shorty:
     project: qorio/omni
-    server: circleci
+    source: circleci
     build_number: {{.BUILD_NUMBER}}
     platform: linux_amd64
     artifact: shorty
 
   geoip:
     project: qorio/omni
-    server: circleci
+    source: circleci
     build_number: {{.BUILD_NUMBER}}
     artifact: GeoLiteCity.dat
+
+  dev-keys:
+    source: local
+    path: dir/to/key
 
 docker:
   passport:
@@ -166,7 +170,7 @@ type YamlTests struct{}
 
 var _ = Suite(&YamlTests{})
 
-func (suite *YamlTests) TestLoadArtifactSection(c *C) {
+func (suite *YamlTests) TestSchema(c *C) {
 
 	doc := struct {
 		Import   []string
@@ -175,7 +179,7 @@ func (suite *YamlTests) TestLoadArtifactSection(c *C) {
 		Service  map[string][]map[string]string
 		Artifact map[string]struct {
 			Project     string
-			Server      string
+			Source      string
 			BuildNumber int
 			Artifact    string
 			Platform    string
@@ -217,7 +221,7 @@ func (suite *YamlTests) TestLoadArtifactSection(c *C) {
 	c.Assert(doc.Var["DOCKER_AUTH"], Equals, "bGFiNjE2OmxhYjYxNgc==")
 
 	artifacts := doc.Artifact
-	c.Assert(len(artifacts), Equals, 3)
+	c.Assert(len(artifacts), Equals, 4)
 	c.Assert(artifacts["shorty"].Artifact, Equals, "shorty")
 
 	dockers := doc.Docker
@@ -244,4 +248,5 @@ func (suite *YamlTests) TestLoadArtifactSection(c *C) {
 	instances := doc.Resource.Instance
 	c.Assert(len(instances), Equals, 3)
 	c.Assert(instances["gce-host-2"].Volumes["config"], Equals, "dev-config => /config")
+
 }
