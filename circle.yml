@@ -9,7 +9,6 @@ machine:
   # Override /etc/hosts
   hosts:
     circlehost: 127.0.0.1
-    #dev.mycompany.com: 127.0.0.1
 
   # Add some environment variables
   environment:
@@ -23,52 +22,28 @@ machine:
     DOCKER_EMAIL: davidc616@gmail.com
     DOCKER_AUTH: bGFiNjE2OmxhYjYxNg==
 
-## Customize checkout
-checkout:
-  post:
-    - git submodule sync
-    - git submodule update --init # use submodules
-
 ## Customize dependencies
 dependencies:
   pre:
     - go version
-  override:
-    - ./build-gen-proto.sh
-    - ./build-x-compile.sh main/shorty.go main/dasher.go main/passport.go main/lighthouse.go main/blinker.go
-  post:
-    - cp -r $BUILD_TARGET_DIR/* $CIRCLE_ARTIFACTS
-    - cp -r $BUILD_SRC_DIR/GeoLiteCity.dat $CIRCLE_ARTIFACTS
-    - cp -r $BUILD_SRC_DIR/test/authKey.pub $CIRCLE_ARTIFACTS/testAuthKey.pub
 
-## Customize database setup
-database:
   override:
-    # replace CircleCI's generated database.yml
+    - source ./bin/env.sh
+
+  post:
 
 ## Customize test commands
 test:
   override:
-    - go test github.com/qorio/omni/rest
-    - go test github.com/qorio/omni/auth --auth_public_key_file=$BUILD_SRC_DIR/test/authKey.pub
-    - go test github.com/qorio/omni/passport --auth_public_key_file=$BUILD_SRC_DIR/test/authKey.pub
-    - go test github.com/qorio/omni/lighthouse --auth_public_key_file=$BUILD_SRC_DIR/test/authKey.pub
-    - go test github.com/qorio/omni/shorty
-    - go test github.com/qorio/omni/stripe
+    - godep go test ./... -v -check.vv
 
 ## Customize deployment commands
 deployment:
-   staging:
-     branch: master
-     commands:
-      - sed "s/<EMAIL>/$DOCKER_EMAIL/;s/<AUTH>/$DOCKER_AUTH/" < .dockercfg.template > ~/.dockercfg
-      - cp $BUILD_TARGET_DIR/linux_amd64/blinker etc/docker/blinker
-      - cp $BUILD_SRC_DIR/test/authKey.pub etc/docker/blinker/testAuthKey.pub
-      - docker build -t $DOCKER_ACCOUNT/blinker:"$CIRCLE_BUILD_NUM" etc/docker/blinker
-      - docker push $DOCKER_ACCOUNT/blinker:"$CIRCLE_BUILD_NUM"
-
-## Custom notifications
-notify:
-#  webhooks:
-    # A list of hashes representing hooks. Only the url field is supported.
-#    - url: https://someurl.com/hooks/circle
+   # staging:
+   #   branch: master
+   #   commands:
+   #    - sed "s/<EMAIL>/$DOCKER_EMAIL/;s/<AUTH>/$DOCKER_AUTH/" < .dockercfg.template > ~/.dockercfg
+   #    - cp $BUILD_TARGET_DIR/linux_amd64/blinker etc/docker/blinker
+   #    - cp $BUILD_SRC_DIR/test/authKey.pub etc/docker/blinker/testAuthKey.pub
+   #    - docker build -t $DOCKER_ACCOUNT/blinker:"$CIRCLE_BUILD_NUM" etc/docker/blinker
+   #    - docker push $DOCKER_ACCOUNT/blinker:"$CIRCLE_BUILD_NUM"
