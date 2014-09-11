@@ -79,29 +79,29 @@ docker:
 container:
   passport:
       ssh:
-         - docker run -d -p 5050:5050 -v {{.host.volumes.config}}/omni:/static/conf --name passport {{.image}}
+         - docker run -d -p 5050:5050 -v {{.instance.volumes.config}}/omni:/static/conf --name passport {{.image}}
 
   shorty:
       ssh:
-         - docker run -d -p 5050:5050 -v {{.host.volumes.config}}/omni:/static/conf --name shorty {{.image}}
+         - docker run -d -p 5050:5050 -v {{.instance.volumes.config}}/omni:/static/conf --name shorty {{.image}}
 
   mongodb:
       image: mongo:2.7.5
       ssh:
-        - docker run -d -p 27017:27017 -v {{.host.volumes.db}}/mongo:/data/db --name mongodb {{.image}}
+        - docker run -d -p 27017:27017 -v {{.instance.volumes.db}}/mongo:/data/db --name mongodb {{.image}}
 
   redis:
       image: redis:2.8.13
       ssh:
-        - docker run -d -p 6379:6379 -v {{.host.volumes.db}}:/data
-          -v {{.host.volumes.config}}/redis/redis.conf:/etc/redis/redis.conf:ro --name redis {{.image}} redis-server
+        - docker run -d -p 6379:6379 -v {{.instance.volumes.db}}:/data
+          -v {{.instance.volumes.config}}/redis/redis.conf:/etc/redis/redis.conf:ro --name redis {{.image}} redis-server
 
   redis-prod:
       image: redis:2.8.13
       ssh:
         - >
           docker run -d -p 6379:6379 -v {{.resource.disk.redisdb-prod.mount}}:/data
-           -v {{.host.volumes.config}}/redis/redis.conf:/etc/redis/redis.conf:ro --name redis {{.image}} redis-server
+           -v {{.instance.volumes.config}}/redis/redis.conf:/etc/redis/redis.conf:ro --name redis {{.image}} redis-server
 
   nginx:
       image: nginx:1.7.1
@@ -138,30 +138,30 @@ resource:
     gce-host-0:
       cloud: gce
       project: qoriolabsdev
-      internal-ip: 127:0:1:1
+      internal-ip: 127.0.0.1
       labels: prod, prod-mongodb
       volumes:
-        config: prod-configs => /config
-        db: prod-db => /data
+        /config: prod-configs
+        /data: prod-db
 
     gce-host-1:
       cloud: gce
       project: qoriolabsdev
       machine-type: n1-standard-1
       zone: us-west
-      internal-ip: 127:0:0:1
+      internal-ip: 127.0.0.1
       labels: prod, lb
       volumes:
-        config: prod-configs => /config
+        /config: prod-configs
 
     gce-host-2:
       cloud: gce
       project: qoriolabsdev
-      internal-ip: 127:0:1:1
+      internal-ip: 127.0.0.1
       labels: dev, stage, db
       volumes:
-        config: dev-config => /config
-        db: dev-mongodb => /data
+        /config: dev-config
+        /data: dev-mongodb
 `
 
 func TestYaml(t *testing.T) { TestingT(t) }
@@ -177,7 +177,7 @@ func (suite *YamlTests) TestSchema(c *C) {
 		Deploy   []string
 		Var      map[string]string
 		Service  map[string][]map[string]string
-		Artifact map[string]struct {
+		Artifact map[ArtifactKey]struct {
 			Project     string
 			Source      string
 			BuildNumber int
@@ -187,7 +187,7 @@ func (suite *YamlTests) TestSchema(c *C) {
 		Docker map[string]struct {
 			Dockerfile string
 			Image      string
-			Artifacts  []string
+			Artifacts  []ArtifactKey
 		}
 		Container map[string]struct {
 			Image string
@@ -205,7 +205,7 @@ func (suite *YamlTests) TestSchema(c *C) {
 				InternalIp string `yaml:"internal-ip"`
 				ExternalIp string `yaml:"external-ip"`
 				Labels     string
-				Volumes    map[string]string
+				Volumes    map[MountPoint]DiskKey
 			}
 		}
 	}{}
@@ -226,7 +226,7 @@ func (suite *YamlTests) TestSchema(c *C) {
 
 	dockers := doc.Docker
 	c.Assert(len(dockers), Equals, 2)
-	c.Assert(dockers["shorty"].Artifacts[1], Equals, "shorty")
+	c.Assert(dockers["shorty"].Artifacts[1], Equals, ArtifactKey("shorty"))
 
 	containers := doc.Container
 	c.Assert(len(containers), Equals, 6)
@@ -247,6 +247,6 @@ func (suite *YamlTests) TestSchema(c *C) {
 
 	instances := doc.Resource.Instance
 	c.Assert(len(instances), Equals, 3)
-	c.Assert(instances["gce-host-2"].Volumes["config"], Equals, "dev-config => /config")
-
+	c.Assert(instances["gce-host-2"].InternalIp, Equals, "127.0.0.1")
+	c.Assert(instances["gce-host-2"].Volumes["/config"], Equals, DiskKey("dev-config"))
 }
