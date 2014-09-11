@@ -1,4 +1,4 @@
-package util
+package yaml
 
 import (
 	. "gopkg.in/check.v1"
@@ -60,7 +60,7 @@ artifact:
     source: local
     path: dir/to/key
 
-docker:
+image:
   passport:
      dockerfile: docker/passport/Dockerfile
      image: qorio/passport:{{.PASSPORT_IMAGE_TAG}}
@@ -141,8 +141,10 @@ resource:
       internal-ip: 127.0.0.1
       labels: prod, prod-mongodb
       volumes:
-        /config: prod-configs
-        /data: prod-db
+        config:
+           /config: prod-configs
+        db:
+           /data: prod-db
 
     gce-host-1:
       cloud: gce
@@ -152,7 +154,8 @@ resource:
       internal-ip: 127.0.0.1
       labels: prod, lb
       volumes:
-        /config: prod-configs
+        config:
+          /config: prod-configs
 
     gce-host-2:
       cloud: gce
@@ -160,8 +163,10 @@ resource:
       internal-ip: 127.0.0.1
       labels: dev, stage, db
       volumes:
-        /config: dev-config
-        /data: dev-mongodb
+        config:
+          /config: dev-config
+        data:
+          /data: dev-mongodb
 `
 
 func TestYaml(t *testing.T) { TestingT(t) }
@@ -172,43 +177,7 @@ var _ = Suite(&YamlTests{})
 
 func (suite *YamlTests) TestSchema(c *C) {
 
-	doc := struct {
-		Import   []string
-		Deploy   []string
-		Var      map[string]string
-		Service  map[string][]map[string]string
-		Artifact map[ArtifactKey]struct {
-			Project     string
-			Source      string
-			BuildNumber int
-			Artifact    string
-			Platform    string
-		}
-		Docker map[string]struct {
-			Dockerfile string
-			Image      string
-			Artifacts  []ArtifactKey
-		}
-		Container map[string]struct {
-			Image string
-			Ssh   []string
-		}
-		Resource struct {
-			Disk map[string]struct {
-				Cloud string
-				Type  string
-				Size  string
-			}
-			Instance map[string]struct {
-				Cloud      string
-				Project    string
-				InternalIp string `yaml:"internal-ip"`
-				ExternalIp string `yaml:"external-ip"`
-				Labels     string
-				Volumes    map[MountPoint]DiskKey
-			}
-		}
-	}{}
+	doc := MaestroDoc{}
 
 	err := yaml.Unmarshal([]byte(test_yml), &doc)
 	c.Assert(err, Equals, nil)
@@ -226,20 +195,20 @@ func (suite *YamlTests) TestSchema(c *C) {
 
 	dockers := doc.Docker
 	c.Assert(len(dockers), Equals, 2)
-	c.Assert(dockers["shorty"].Artifacts[1], Equals, ArtifactKey("shorty"))
+	c.Assert(dockers["shorty"].ArtifactKeys[1], Equals, ArtifactKey("shorty"))
 
 	containers := doc.Container
 	c.Assert(len(containers), Equals, 6)
 	c.Assert(len(containers["redis"].Ssh), Equals, 1)
-	c.Assert(containers["nginx"].Image, Equals, "nginx:1.7.1")
+	c.Assert(containers["nginx"].DockerHubImageAndTag, Equals, "nginx:1.7.1")
 
 	service := doc.Service
-	c.Assert(service["passport"][0]["mongodb"], Equals, "db")
-	c.Assert(service["passport"][1]["passport"], Equals, "dev")
+	c.Assert(service["passport"][0]["mongodb"], Equals, InstanceLabel("db"))
+	c.Assert(service["passport"][1]["passport"], Equals, InstanceLabel("dev"))
 
-	c.Assert(service["passport-prod"][0]["mongodb-prod"], Equals, "prod-db")
-	c.Assert(service["passport-prod"][1]["passport"], Equals, "prod")
-	c.Assert(service["passport-prod"][2]["nginx"], Equals, "lb")
+	c.Assert(service["passport-prod"][0]["mongodb-prod"], Equals, InstanceLabel("prod-db"))
+	c.Assert(service["passport-prod"][1]["passport"], Equals, InstanceLabel("prod"))
+	c.Assert(service["passport-prod"][2]["nginx"], Equals, InstanceLabel("lb"))
 
 	disks := doc.Resource.Disk
 	c.Assert(len(disks), Equals, 4)
@@ -247,6 +216,6 @@ func (suite *YamlTests) TestSchema(c *C) {
 
 	instances := doc.Resource.Instance
 	c.Assert(len(instances), Equals, 3)
-	c.Assert(instances["gce-host-2"].InternalIp, Equals, "127.0.0.1")
-	c.Assert(instances["gce-host-2"].Volumes["/config"], Equals, DiskKey("dev-config"))
+	c.Assert(instances["gce-host-2"].InternalIp, Equals, Ip("127.0.0.1"))
+	c.Assert(instances["gce-host-2"].Volumes["config"]["/config"], Equals, DiskKey("dev-config"))
 }

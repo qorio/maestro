@@ -1,4 +1,4 @@
-package util
+package ssh
 
 import (
 	"code.google.com/p/go.crypto/ssh"
@@ -26,7 +26,7 @@ type sshClient struct {
 	client *ssh.Client
 }
 
-func SshKeyFileAuthMethod(keyfile string) (ssh.AuthMethod, error) {
+func KeyFileAuthMethod(keyfile string) (ssh.AuthMethod, error) {
 	key, err := ParseKey(keyfile)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func SshKeyFileAuthMethod(keyfile string) (ssh.AuthMethod, error) {
 	return ssh.PublicKeys(key), nil
 }
 
-func SshAgentAuthMethod() (ssh.AuthMethod, error) {
+func AgentAuthMethod() (ssh.AuthMethod, error) {
 	env := os.Getenv("SSH_AUTH_SOCK")
 	if env == "" {
 		return nil, errors.New("SSH_AUTH_SOCK not defined")
@@ -51,7 +51,7 @@ func SshAgentAuthMethod() (ssh.AuthMethod, error) {
 	return ssh.PublicKeys(auths...), nil
 }
 
-func SshKeyBytesAuthMethod(buff []byte) (ssh.AuthMethod, error) {
+func KeyBytesAuthMethod(buff []byte) (ssh.AuthMethod, error) {
 	private, err := ssh.ParsePrivateKey(buff)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func SshKeyBytesAuthMethod(buff []byte) (ssh.AuthMethod, error) {
 	return ssh.PublicKeys(private), nil
 }
 
-func NewSshClient(user, host string, auth ssh.AuthMethod) (*sshClient, error) {
+func NewClient(user, host string, auth ssh.AuthMethod) (*sshClient, error) {
 	c := &sshClient{
 		config: &ssh.ClientConfig{
 			User: user,

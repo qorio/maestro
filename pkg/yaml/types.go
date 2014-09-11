@@ -1,4 +1,4 @@
-package util
+package yaml
 
 type ArtifactKey string
 type Artifact struct {
@@ -13,17 +13,18 @@ type Artifact struct {
 
 type DockerBuildKey string
 type DockerBuild struct {
-	Dockerfile           string           `yaml:"dockerfile"`
-	DockerHubImageAndTag string           `yaml:"image"`
-	ArtifactKeys         []DockerBuildKey `yaml:"artifacts"`
+	Dockerfile           string        `yaml:"dockerfile"`
+	DockerHubImageAndTag string        `yaml:"image"`
+	ArtifactKeys         []ArtifactKey `yaml:"artifacts"`
 
-	Name      DockerBuildKey
-	Artifacts []*Artifact
+	Name            DockerBuildKey
+	ArtifactObjects []*Artifact
 }
 
 type DockerContainerKey string
 type DockerContainer struct {
-	Ssh []string `yaml:"ssh"`
+	DockerHubImageAndTag string   `yaml:"image"`
+	Ssh                  []string `yaml:"ssh"`
 
 	Instance    *Instance
 	DockerBuild DockerBuildKey
@@ -43,7 +44,7 @@ type Ip string
 type InstanceKey string
 type MountPoint string
 type InstanceLabel string
-type Volume map[MountPoint]Disk
+type Volume map[MountPoint]DiskKey
 type VolumeLabel string
 type Instance struct {
 	Cloud          string                 `yaml:"cloud"`

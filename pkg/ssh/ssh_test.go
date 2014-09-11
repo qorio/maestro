@@ -1,4 +1,4 @@
-package util
+package ssh
 
 import (
 	. "gopkg.in/check.v1"
@@ -48,12 +48,12 @@ Ln2N5VFmCszDwgXpzVxvND2Wud5Omg1C2OsWesE62GOR7z1dbcDkCg==
 const gce_test_server = "146.148.41.142"
 const gce_test_user = "test"
 
-func (suite *SSHTests) TestSshExecute(c *C) {
+func (suite *SSHTests) TestExecute(c *C) {
 
-	auth, err := SshKeyBytesAuthMethod([]byte(rsa_key))
+	auth, err := KeyBytesAuthMethod([]byte(rsa_key))
 	c.Assert(err, Equals, nil)
 
-	ssh_client, err := NewSshClient(gce_test_user, gce_test_server, auth)
+	ssh_client, err := NewClient(gce_test_user, gce_test_server, auth)
 	c.Assert(err, Equals, nil)
 	{
 		stdout, err := ssh_client.RunCommandStdout("ls -al /")
@@ -61,15 +61,15 @@ func (suite *SSHTests) TestSshExecute(c *C) {
 	}
 }
 
-func (suite *SSHTests) TestSshAgent(c *C) {
+func (suite *SSHTests) TestAgent(c *C) {
 	if os.Getenv("SKIP_SSH_AGENT_TEST") == "true" {
 		return
 	}
 
-	auth, err := SshAgentAuthMethod()
+	auth, err := AgentAuthMethod()
 	c.Assert(err, Equals, nil)
 
-	ssh_client, err := NewSshClient(gce_test_user, gce_test_server, auth)
+	ssh_client, err := NewClient(gce_test_user, gce_test_server, auth)
 	c.Assert(err, Equals, nil)
 	{
 		stdout, err := ssh_client.RunCommandStdout("ls -al /")

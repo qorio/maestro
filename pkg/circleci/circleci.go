@@ -1,4 +1,4 @@
-package util
+package circleci
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 )
 
-type CircleCI struct {
+type Config struct {
 	User     string
 	Project  string
 	ApiToken string
@@ -23,12 +23,12 @@ type BuildArtifact struct {
 	PrettyPath string `json:"pretty_path,omitempty"`
 	URL        string `json:"url,omitempty"`
 	Name       string `json:"name,omitempty"`
-	circleci   *CircleCI
+	circleci   *Config
 }
 
 const CircleApiPrefix = "https://circleci.com/api/v1"
 
-func (this *CircleCI) url(format string, parts ...interface{}) (*url.URL, error) {
+func (this *Config) url(format string, parts ...interface{}) (*url.URL, error) {
 	url_main := CircleApiPrefix + fmt.Sprintf(format, parts...)
 	url, err := url.Parse(url_main)
 	if err != nil {
@@ -43,7 +43,7 @@ func (this *CircleCI) url(format string, parts ...interface{}) (*url.URL, error)
 
 type BuildArtifactFilter func(*BuildArtifact) bool
 
-func (this *CircleCI) FetchBuildArtifacts(buildNum int, filter BuildArtifactFilter) ([]BuildArtifact, error) {
+func (this *Config) FetchBuildArtifacts(buildNum int, filter BuildArtifactFilter) ([]BuildArtifact, error) {
 	url, err := this.url("/project/%s/%s/%d/artifacts", this.User, this.Project, buildNum)
 	if err != nil {
 		return nil, err

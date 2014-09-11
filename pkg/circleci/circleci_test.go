@@ -1,4 +1,4 @@
-package util
+package circleci
 
 import (
 	"fmt"
@@ -29,7 +29,7 @@ func (suite *CircleCITests) TestFetchBuildArtifacts(c *C) {
 		return r.MatchString(a.Path)
 	}
 
-	cl := &CircleCI{
+	cl := &Config{
 		User:     "qorio",
 		Project:  "omni",
 		ApiToken: token,
