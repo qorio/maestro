@@ -1,5 +1,17 @@
 package yaml
 
+// Interface to encapsulate build/ deployment behavior of different
+// resources and artifacts.
+
+type Context map[string]interface{}
+type Runnable interface {
+	Validate(c Context) (bool, error)
+	InDesiredState(c Context) (bool, error)
+	Prepare(c Context) error
+	Execute(c Context) error
+	Finish(c Context) error
+}
+
 type ArtifactKey string
 type Artifact struct {
 	Project     string `yaml:"project"`
@@ -11,24 +23,24 @@ type Artifact struct {
 	Name ArtifactKey
 }
 
-type DockerBuildKey string
-type DockerBuild struct {
+type ImageKey string
+type Image struct {
 	Dockerfile           string        `yaml:"dockerfile"`
 	DockerHubImageAndTag string        `yaml:"image"`
 	ArtifactKeys         []ArtifactKey `yaml:"artifacts"`
 
-	Name            DockerBuildKey
-	ArtifactObjects []*Artifact
+	Name      ImageKey
+	artifacts []*Artifact
 }
 
-type DockerContainerKey string
-type DockerContainer struct {
-	DockerHubImageAndTag string   `yaml:"image"`
-	Ssh                  []string `yaml:"ssh"`
+type ContainerKey string
+type Container struct {
+	ImageRef string   `yaml:"image"`
+	Ssh      []string `yaml:"ssh"`
 
-	Instance    *Instance
-	DockerBuild DockerBuildKey
-	Name        DockerContainerKey
+	Name     ContainerKey
+	instance *Instance
+	image    *Image
 }
 
 type DiskKey string
@@ -37,7 +49,7 @@ type Disk struct {
 	Type  string `yaml:"disk-type"`
 	Size  string `yaml:"size-gb"`
 
-	name DiskKey
+	Name DiskKey
 }
 
 type Ip string
@@ -53,24 +65,32 @@ type Instance struct {
 	ExternalIp     Ip                     `yaml:"external-ip"`
 	InstanceLabels []InstanceLabel        `yaml:"labels"`
 	Volumes        map[VolumeLabel]Volume `yaml:"volumes"`
-
-	Name InstanceKey
+	Name           InstanceKey
+	//Containers [][]Container // sequence of sets of containers to run
 }
 
 type ServiceKey string
-type ServiceSection map[ServiceKey][]map[DockerContainerKey]InstanceLabel
-type YmlFile string
+type ServiceSection map[ServiceKey][]map[ContainerKey]InstanceLabel
+type Service struct {
+	Name    ServiceKey
+	Targets [][]*Container
+	Spec    []map[ContainerKey]InstanceLabel
+}
+type YmlFilePath string
 
 type MaestroDoc struct {
-	Import    []YmlFile                                             `yaml:"import"`
-	Deploy    []ServiceKey                                          `yaml:"deploy"`
-	Var       map[string]string                                     `yaml:"var"`
-	Service   map[ServiceKey][]map[DockerContainerKey]InstanceLabel `yaml:"service"`
-	Artifact  map[ArtifactKey]Artifact                              `yaml:"artifact"`
-	Docker    map[DockerBuildKey]DockerBuild                        `yaml:"image"`
-	Container map[DockerContainerKey]DockerContainer                `yaml:"container"`
-	Resource  struct {
-		Disk     map[DiskKey]Disk         `yaml:"disk"`
-		Instance map[InstanceKey]Instance `yaml:"instance"`
-	}
+	Imports        []YmlFilePath                                   `yaml:"import"`
+	Deploys        []ServiceKey                                    `yaml:"deploy"`
+	Vars           map[string]string                               `yaml:"var"`
+	ServiceSection map[ServiceKey][]map[ContainerKey]InstanceLabel `yaml:"service"`
+	Artifacts      map[ArtifactKey]*Artifact                       `yaml:"artifact"`
+	Images         map[ImageKey]*Image                             `yaml:"image"`
+	Containers     map[ContainerKey]*Container                     `yaml:"container"`
+	Resources      struct {
+		Disks     map[DiskKey]*Disk         `yaml:"disk"`
+		Instances map[InstanceKey]*Instance `yaml:"instance"`
+	} `yaml:"resource"`
+
+	// Parsed and populated
+	Services map[ServiceKey]*Service
 }
