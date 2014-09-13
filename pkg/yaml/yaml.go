@@ -1,13 +1,40 @@
 package yaml
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"gopkg.in/yaml.v1"
 	"io/ioutil"
 	"log"
 	"os"
 	"sort"
+	"text/template"
 )
+
+func (this Context) copy_from(other Context) {
+	for k, v := range other {
+		this[k] = v
+	}
+}
+
+func (this Context) eval(f *string) string {
+	old := *f
+	s := eval(*f, this)
+	*f = s
+	return old
+}
+
+func eval(tpl string, m map[string]interface{}) string {
+	var buff bytes.Buffer
+	t := template.Must(template.New(tpl).Parse(tpl))
+	err := t.Execute(&buff, m)
+	if err != nil {
+		return tpl
+	} else {
+		return os.ExpandEnv(buff.String())
+	}
+}
 
 func (this *MaestroDoc) LoadFromFile(filename string) error {
 	file, err := os.Open(filename)
@@ -30,8 +57,9 @@ func (this *MaestroDoc) LoadFromBytes(buff []byte) error {
 
 	// Do imports
 	for _, file := range this.Imports {
+		path := os.ExpandEnv(string(file))
 		imported := &MaestroDoc{}
-		if err := imported.LoadFromFile(string(file)); err != nil {
+		if err := imported.LoadFromFile(path); err != nil {
 			return err
 		} else {
 			imported.merge(this)
@@ -50,12 +78,6 @@ func (this *MaestroDoc) merge(other *MaestroDoc) error {
 			log.Println("Warning: Var[", k, "] to be overriden.")
 		}
 		this.Vars[k] = v
-	}
-	for k, v := range other.Services {
-		if _, has := this.Services[k]; has {
-			log.Println("Warning: Service[", k, "] to be overriden.")
-		}
-		this.Services[k] = v
 	}
 	for k, v := range other.Artifacts {
 		if _, has := this.Artifacts[k]; has {
@@ -87,8 +109,25 @@ func (this *MaestroDoc) merge(other *MaestroDoc) error {
 		}
 		this.Resources.Instances[k] = v
 	}
+	for k, v := range other.ServiceSection {
+		if _, has := this.ServiceSection[k]; has {
+			log.Println("Warning: Service[", k, "] to be overriden.")
+		}
+		this.ServiceSection[k] = v
+	}
 
 	return nil
+}
+
+func (this *Container) clone_from(other *Container) {
+	*this = *other
+	// we need clone the ssh commands since they are stored as array of pointers
+	ssh := make([]*string, len(other.Ssh))
+	for i, c := range other.Ssh {
+		copy := *c
+		ssh[i] = &copy
+	}
+	this.Ssh = ssh
 }
 
 func (this *MaestroDoc) build_services() error {
@@ -128,10 +167,10 @@ func (this *MaestroDoc) build_services() error {
 							}
 						}
 						if matched {
-							copy := Container{}
-							copy = *container
-							copy.instance = instance
-							container_instances = append(container_instances, &copy)
+							copy := &Container{}
+							copy.clone_from(container)
+							copy.TargetInstance = instance
+							container_instances = append(container_instances, copy)
 						}
 					}
 					serviceObject.Targets = append(serviceObject.Targets, container_instances)
@@ -171,13 +210,14 @@ func (this *MaestroDoc) process_containers() error {
 		// containers either reference images or builds
 
 		if image, has := this.Images[ImageKey(container.ImageRef)]; has {
-			container.image = image
+			container.TargetImage = image
 		} else {
 			// assumes that the image references a docker hub image
-			container.image = nil
+			container.TargetImage = nil
 		}
-		// containers also reference instances which are bound later at the time
+		// Containers also reference instances which are bound later at the time
 		// when we launch container in instances in parallel.
+		// The instances are bound via definition of services.
 	}
 	return nil
 }
@@ -186,9 +226,22 @@ func (this *MaestroDoc) process_resources() error {
 	for k, a := range this.Resources.Disks {
 		a.Name = DiskKey(k)
 	}
-	for k, a := range this.Resources.Instances {
-		a.Name = InstanceKey(k)
+	for k, instance := range this.Resources.Instances {
+		instance.Name = InstanceKey(k)
+		instance.Disks = make(map[VolumeLabel]*Volume)
+		for vl, m := range instance.VolumeSection {
+			for dk, mp := range m {
+				if _, has := this.Resources.Disks[dk]; !has {
+					return errors.New(fmt.Sprint("No disk '", dk, "' found."))
+				}
+				instance.Disks[vl] = &Volume{
+					Disk:       dk,
+					MountPoint: string(mp),
+				}
+			}
+		}
 	}
+
 	return nil
 }
 
@@ -212,12 +265,21 @@ func (this *MaestroDoc) process_config() error {
 	return nil
 }
 
+func (this *MaestroDoc) new_context() Context {
+	context := make(Context)
+	for k, v := range this.Vars {
+		// Substitutes any $ENV with value from the environment
+		context[k] = os.ExpandEnv(v)
+	}
+	return context
+}
+
 func (this *MaestroDoc) Deploy() error {
 	if err := this.process_config(); err != nil {
 		return err
 	}
 
-	context := make(Context)
+	context := this.new_context()
 	if err := this.Validate(context); err != nil {
 		return err
 	}
@@ -245,7 +307,44 @@ func (this *MaestroDoc) Deploy() error {
 }
 
 func (this *MaestroDoc) Validate(c Context) error {
-	return nil
+	// Validate the doc
+	// TODO The resources and artifacts are independent so we can run in parallel
+
+	var err error
+	for k, disk := range this.Resources.Disks {
+		log.Print("Validating disk " + k)
+		err = disk.Validate(c)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+	}
+	for k, instance := range this.Resources.Instances {
+		log.Print("Validating instance " + k)
+		err = instance.Validate(c)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+	}
+	for k, image := range this.Images {
+		log.Print("Validating image " + k)
+		err = image.Validate(c)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+	}
+	log.Println("Image validation done.")
+	for k, service := range this.Services {
+		log.Print("Validating service " + k)
+		err = service.Validate(c)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+	}
+	return err
 }
 
 func (this *MaestroDoc) InDesiredState(c Context) (bool, error) {
@@ -253,15 +352,12 @@ func (this *MaestroDoc) InDesiredState(c Context) (bool, error) {
 }
 
 func (this *MaestroDoc) Prepare(c Context) error {
-	// Populates the vars in the context so that they are globally accessible
-	for k, v := range this.Vars {
-		c[k] = v
-	}
-	// Bring instance data into the scope of a container object
-	for k, container := range this.Containers {
-		container.Name = k
-		// find the instance by k
-
+	// For now, we just prepare the images
+	for _, image := range this.Images {
+		err := image.Prepare(c)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

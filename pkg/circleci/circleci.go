@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 )
 
 type Config struct {
@@ -37,13 +38,26 @@ func (this *Config) url(format string, parts ...interface{}) (*url.URL, error) {
 	q := url.Query()
 	q.Add("circle-token", this.ApiToken)
 	url.RawQuery = q.Encode()
-	log.Println("URL", url)
 	return url, nil
 }
 
 type BuildArtifactFilter func(*BuildArtifact) bool
 
-func (this *Config) FetchBuildArtifacts(buildNum int, filter BuildArtifactFilter) ([]BuildArtifact, error) {
+func MatchPathAndBinary(path, binary string) (BuildArtifactFilter, error) {
+	exp := path
+	if exp == "" {
+		exp = ".*"
+	}
+	r, err := regexp.Compile(exp)
+	if err != nil {
+		return nil, err
+	}
+	return func(a *BuildArtifact) bool {
+		return r.MatchString(a.Path) && a.Name == binary
+	}, nil
+}
+
+func (this *Config) FetchBuildArtifacts(buildNum int64, filter BuildArtifactFilter) ([]BuildArtifact, error) {
 	url, err := this.url("/project/%s/%s/%d/artifacts", this.User, this.Project, buildNum)
 	if err != nil {
 		return nil, err
@@ -51,13 +65,13 @@ func (this *Config) FetchBuildArtifacts(buildNum int, filter BuildArtifactFilter
 	client := &http.Client{}
 	get, err := http.NewRequest("GET", url.String(), nil)
 	get.Header.Add("Accept", "application/json")
-	log.Println("About to get", url.String())
+	log.Println("CircleCI: GET", url)
 	resp, err := client.Do(get)
 	if err != nil {
 		return nil, err
 	}
 
-	artifacts := []BuildArtifact{}
+	artifacts := []*BuildArtifact{}
 	err = json.NewDecoder(resp.Body).Decode(&artifacts)
 	if err != nil {
 		return nil, err
@@ -65,14 +79,14 @@ func (this *Config) FetchBuildArtifacts(buildNum int, filter BuildArtifactFilter
 
 	result := make([]BuildArtifact, 0)
 	for _, a := range artifacts {
+		a.Name = filepath.Base(a.Path) // parse the path for the name of the binary
 		accept := true
 		if filter != nil {
-			accept = filter(&a)
+			accept = filter(a)
 		}
 		if accept {
-			a.Name = filepath.Base(a.Path) // parse the path for the name of the binary
 			a.circleci = this
-			result = append(result, a)
+			result = append(result, *a)
 		}
 	}
 	return result, nil
@@ -105,7 +119,7 @@ func (this *BuildArtifact) Download(dir string) (int64, error) {
 		return 0, err
 	}
 
-	err = file.Chmod(0555)
+	err = file.Chmod(0777)
 	if err != nil {
 		return 0, err
 	}

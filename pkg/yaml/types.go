@@ -16,7 +16,7 @@ type ArtifactKey string
 type Artifact struct {
 	Project     string `yaml:"project"`
 	Source      string `yaml:"source"`
-	BuildNumber int64  `yaml:"build-number"`
+	BuildNumber string `yaml:"build"`
 	Artifact    string `yaml:"artifact"`
 	Platform    string `yaml:"platform"`
 
@@ -25,9 +25,9 @@ type Artifact struct {
 
 type ImageKey string
 type Image struct {
-	Dockerfile           string        `yaml:"dockerfile"`
-	DockerHubImageAndTag string        `yaml:"image"`
-	ArtifactKeys         []ArtifactKey `yaml:"artifacts"`
+	Dockerfile   string        `yaml:"dockerfile"`
+	RepoId       string        `yaml:"image"`
+	ArtifactKeys []ArtifactKey `yaml:"artifacts"`
 
 	Name      ImageKey
 	artifacts []*Artifact
@@ -35,12 +35,12 @@ type Image struct {
 
 type ContainerKey string
 type Container struct {
-	ImageRef string   `yaml:"image"`
-	Ssh      []string `yaml:"ssh"`
+	ImageRef string    `yaml:"image"`
+	Ssh      []*string `yaml:"ssh"`
 
-	Name     ContainerKey
-	instance *Instance
-	image    *Image
+	Name           ContainerKey
+	TargetInstance *Instance
+	TargetImage    *Image
 }
 
 type DiskKey string
@@ -56,17 +56,21 @@ type Ip string
 type InstanceKey string
 type MountPoint string
 type InstanceLabel string
-type Volume map[MountPoint]DiskKey
+type Volume struct {
+	Disk       DiskKey
+	MountPoint string
+}
 type VolumeLabel string
 type Instance struct {
-	Cloud          string                 `yaml:"cloud"`
-	Project        string                 `yaml:"project"`
-	InternalIp     Ip                     `yaml:"internal-ip"`
-	ExternalIp     Ip                     `yaml:"external-ip"`
-	InstanceLabels []InstanceLabel        `yaml:"labels"`
-	Volumes        map[VolumeLabel]Volume `yaml:"volumes"`
+	Keyfile        string                                 `yaml:"keyfile"`
+	Cloud          string                                 `yaml:"cloud"`
+	Project        string                                 `yaml:"project"`
+	InternalIp     Ip                                     `yaml:"internal-ip"`
+	ExternalIp     Ip                                     `yaml:"external-ip"`
+	InstanceLabels []InstanceLabel                        `yaml:"labels"`
+	VolumeSection  map[VolumeLabel]map[DiskKey]MountPoint `yaml:"volumes"`
 	Name           InstanceKey
-	//Containers [][]Container // sequence of sets of containers to run
+	Disks          map[VolumeLabel]*Volume
 }
 
 type ServiceKey string

@@ -5,7 +5,6 @@ import (
 	. "gopkg.in/check.v1"
 	"io/ioutil"
 	"os"
-	"regexp"
 	"testing"
 )
 
@@ -22,12 +21,8 @@ const macosx_build = "darwin_386"
 
 func (suite *CircleCITests) TestFetchBuildArtifacts(c *C) {
 
-	r, err := regexp.Compile(macosx_build)
+	filter, err := MatchPathAndBinary(macosx_build, "passport")
 	c.Assert(err, Equals, nil)
-
-	filter := func(a *BuildArtifact) bool {
-		return r.MatchString(a.Path)
-	}
 
 	cl := &Config{
 		User:     "qorio",
@@ -35,10 +30,11 @@ func (suite *CircleCITests) TestFetchBuildArtifacts(c *C) {
 		ApiToken: token,
 	}
 
-	var build int = 291
+	var build int64 = 291
 	artifacts, err := cl.FetchBuildArtifacts(build, filter)
 	c.Assert(err, Equals, nil)
-	c.Assert(len(artifacts), Not(Equals), 0)
+	c.Assert(len(artifacts), Equals, 1)
+	c.Log("build", artifacts)
 
 	temp_dir, err := ioutil.TempDir("", fmt.Sprintf("build-%d-", build))
 	c.Assert(err, Equals, nil)
