@@ -312,7 +312,7 @@ var:
   CIRCLECI_API_TOKEN: 76681eca1d76e43f6535589def6756a27723d8e0
   BUILD_NUMBER: 292
   DOCKER_DIR: $HOME/go/src/github.com/qorio/maestro/docker
-  KEY_DIR: $HOME/go/src/github.com/qorio/maestro/decrypt/environments/dev/.ssh
+  KEY_DIR: $HOME/go/src/github.com/qorio/maestro/environments/dev/.ssh
 
 artifact:
   passport:
