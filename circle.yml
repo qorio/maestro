@@ -15,11 +15,6 @@ machine:
     GOPATH: $HOME/go
     PATH: $GOPATH/bin:$PATH
     CIRCLE_ENV: test
-    STRIPE_PUB_KEY: pk_test_4LSOwxgf2ksQd29Bj8j4ttYy
-    STRIPE_API_KEY: sk_test_4LSOS9XcC9KDQR4qTBuoHCmJ
-    DOCKER_ACCOUNT: lab616
-    DOCKER_EMAIL: davidc616@gmail.com
-    DOCKER_AUTH: bGFiNjE2OmxhYjYxNg==
     SKIP_SSH_AGENT_TEST: true
 
 ## Customize dependencies
@@ -39,11 +34,3 @@ test:
 
 ## Customize deployment commands
 deployment:
-   # staging:
-   #   branch: master
-   #   commands:
-   #    - sed "s/<EMAIL>/$DOCKER_EMAIL/;s/<AUTH>/$DOCKER_AUTH/" < .dockercfg.template > ~/.dockercfg
-   #    - cp $BUILD_TARGET_DIR/linux_amd64/blinker etc/docker/blinker
-   #    - cp $BUILD_SRC_DIR/test/authKey.pub etc/docker/blinker/testAuthKey.pub
-   #    - docker build -t $DOCKER_ACCOUNT/blinker:"$CIRCLE_BUILD_NUM" etc/docker/blinker
-   #    - docker push $DOCKER_ACCOUNT/blinker:"$CIRCLE_BUILD_NUM"

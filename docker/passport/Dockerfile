@@ -2,7 +2,7 @@
 #
 
 # Pull base image.
-FROM lab616/openalpr-1.1.0:latest
+FROM ubuntu:14.04
 
 # Install passport from build directory
 # This assumes that the binary has been copied into the directory where this Dockerfile lives.

@@ -306,15 +306,21 @@ func (suite *YamlTests) TestVariableSubstitution(c *C) {
 const yml = `
 var:
   #TEST_MODE: 1
-  DOCKER_ACCOUNT: lab616
-  DOCKER_EMAIL: davidc616@gmail.com
-  DOCKER_AUTH: bGFiNjE2OmxhYjYxNgc==
+  DOCKER_ACCOUNT: qoriolabs
+  DOCKER_EMAIL: docker@qoriolabs.com
+  DOCKER_AUTH: cW9yaW9sYWJzOlFvcmlvMWxhYnMh
   CIRCLECI_API_TOKEN: 76681eca1d76e43f6535589def6756a27723d8e0
   BUILD_NUMBER: 292
   DOCKER_DIR: $HOME/go/src/github.com/qorio/maestro/docker
   KEY_DIR: $HOME/go/src/github.com/qorio/maestro/environments/dev/.ssh
 
 artifact:
+  auth_key:
+    project: qorio/omni
+    source: circleci
+    build: "{{.BUILD_NUMBER}}"
+    artifact: testAuthKey.pub
+
   passport:
     project: qorio/omni
     source: circleci
@@ -439,12 +445,12 @@ func (suite *YamlTests) TestValidate(c *C) {
 	s1 := passport_containers[0]
 	c.Log(s1.TargetImage.Dockerfile)
 	c.Assert(s1.TargetInstance.ExternalIp, Equals, Ip("164.77.100.101"))
-	c.Assert(*s1.Ssh[0], Equals, "echo \"Host gce-host-0 running qorio/passport:292 build 292\"")
-	c.Assert(*s1.Ssh[1], Equals, "docker run -d -p 5050:5050 -v /config:/static/conf:ro --name passport_292 qorio/passport:292")
+	c.Assert(*s1.Ssh[0], Equals, "echo \"Host gce-host-0 running qoriolabs/passport:292 build 292\"")
+	c.Assert(*s1.Ssh[1], Equals, "docker run -d -p 5050:5050 -v /config:/static/conf:ro --name passport_292 qoriolabs/passport:292")
 
 	s2 := passport_containers[1]
 	c.Assert(s2.TargetInstance.ExternalIp, Equals, Ip("164.77.100.102"))
-	c.Assert(*s2.Ssh[1], Equals, "docker run -d -p 5050:5050 -v /config:/static/conf:ro --name passport_292 qorio/passport:292")
+	c.Assert(*s2.Ssh[1], Equals, "docker run -d -p 5050:5050 -v /config:/static/conf:ro --name passport_292 qoriolabs/passport:292")
 
 }
 
