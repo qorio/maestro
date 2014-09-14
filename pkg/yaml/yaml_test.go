@@ -334,7 +334,6 @@ image:
      image: "{{.DOCKER_ACCOUNT}}/passport:{{.BUILD_NUMBER}}"
      artifacts:
        - passport
-       - auth_key
 
 container:
   passport:
