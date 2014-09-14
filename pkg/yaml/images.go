@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/qorio/maestro/pkg/circleci"
+	"github.com/qorio/maestro/pkg/docker"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,7 +12,18 @@ import (
 	"strings"
 )
 
+const DOCKER_EMAIL = "DOCKER_EMAIL"
+const DOCKER_AUTH = "DOCKER_AUTH"
+
 func (this *Image) Validate(c Context) error {
+	// Check required vars
+	if _, has := c[DOCKER_EMAIL]; !has {
+		return errors.New("Missing DOCKER_EMAIL var")
+	}
+	if _, has := c[DOCKER_AUTH]; !has {
+		return errors.New("Missing DOCKER_AUTH var")
+	}
+
 	c.eval(&this.Dockerfile)
 	c.eval(&this.RepoId)
 
@@ -126,6 +138,21 @@ func (this *Artifact) Prepare(c Context) error {
 	return nil
 }
 
+func docker_config(c Context) (*docker.Config, error) {
+	email, ok := c[DOCKER_EMAIL].(string)
+	if !ok {
+		return nil, errors.New("DOCKER_EMAIL not a string")
+	}
+	auth, ok := c[DOCKER_AUTH].(string)
+	if !ok {
+		return nil, errors.New("DOCKER_AUTH not a string")
+	}
+	return &docker.Config{
+		Email: email,
+		Auth:  auth,
+	}, nil
+}
+
 func (this *Image) Prepare(c Context) error {
 	// for each artifact, pull the binary and place in the dockerfile's directory
 	dir := filepath.Dir(this.Dockerfile)
@@ -138,10 +165,32 @@ func (this *Image) Prepare(c Context) error {
 			return err
 		}
 	}
+
+	// set up dockercfg file
+	f := filepath.Join(os.Getenv("HOME"), ".dockercfg")
+	fi, err := os.Stat(f)
+	switch {
+	case err == nil && fi.IsDir():
+		return errors.New("~/.dockercfg is a directory.")
+	case err == nil: // overwrite
+	case os.IsNotExist(err): // no file
+		docker_config, err := docker_config(c)
+		if err != nil {
+			return nil
+		}
+		err = docker_config.GenerateDockerCfg(f)
+		if err != nil {
+			return err
+		}
+	default:
+		return err
+	}
+
 	return nil
 }
 
 func (this *Image) Execute(c Context) error {
+
 	return nil
 }
 

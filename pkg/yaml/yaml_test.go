@@ -305,6 +305,9 @@ func (suite *YamlTests) TestVariableSubstitution(c *C) {
 
 const yml = `
 var:
+  DOCKER_ACCOUNT: lab616
+  DOCKER_EMAIL: davidc616@gmail.com
+  DOCKER_AUTH: bGFiNjE2OmxhYjYxNgc==
   PASSPORT_IMAGE_TAG: 292
   CIRCLECI_API_TOKEN: 76681eca1d76e43f6535589def6756a27723d8e0
   BUILD_NUMBER: 292
@@ -463,5 +466,25 @@ func (suite *YamlTests) TestPrepare(c *C) {
 
 	// Check downloaded binary exists
 	_, err = os.Stat(filepath.Dir(config.Images["passport"].Dockerfile) + "/passport")
+	c.Assert(err, Equals, nil)
+}
+
+func (suite *YamlTests) TestExecute(c *C) {
+
+	config := &MaestroDoc{}
+	err := config.LoadFromBytes([]byte(yml))
+	c.Assert(err, Equals, nil)
+
+	err = config.process_config()
+	c.Assert(err, Equals, nil)
+
+	context := config.new_context()
+	err = config.Validate(context)
+	c.Assert(err, Equals, nil)
+
+	err = config.Prepare(context)
+	c.Assert(err, Equals, nil)
+
+	err = config.Execute(context)
 	c.Assert(err, Equals, nil)
 }
