@@ -363,6 +363,13 @@ func (this *MaestroDoc) Prepare(c Context) error {
 }
 
 func (this *MaestroDoc) Execute(c Context) error {
+	// For now, we just prepare the images
+	for _, image := range this.Images {
+		err := image.Execute(c)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

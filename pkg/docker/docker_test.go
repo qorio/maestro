@@ -17,6 +17,7 @@ var _ = Suite(&DockerTests{})
 
 const DOCKER_EMAIL = "davidc616@gmail.com"
 const DOCKER_AUTH = "bGFiNjE2OmxhYjYxNg=="
+const DOCKER_ACCOUNT = "lab616"
 
 func (suite *DockerTests) TestGenerateDockerCfg(c *C) {
 	file := filepath.Join(c.MkDir(), ".dockercfg")
@@ -42,4 +43,22 @@ func (suite *DockerTests) TestGenerateDockerCfg(c *C) {
 	m := cfg["https://index.docker.io/v1/"].(map[string]interface{})
 	c.Assert(m["auth"], Equals, DOCKER_AUTH)
 	c.Assert(m["email"], Equals, DOCKER_EMAIL)
+}
+
+func (suite *DockerTests) TestBuildAndPush(c *C) {
+	config := &Config{
+		Email:   DOCKER_EMAIL,
+		Auth:    DOCKER_AUTH,
+		Account: DOCKER_ACCOUNT,
+	}
+	config.TestMode = false
+
+	dockerfile := os.Getenv("HOME") + "/go/src/github.com/qorio/maestro/docker/passport/Dockerfile"
+	image, err := config.NewImage("passport", 292, dockerfile)
+	c.Assert(err, Equals, nil)
+	err = image.Build()
+	c.Assert(err, Equals, nil)
+
+	err = image.Push()
+	c.Assert(err, Equals, nil)
 }

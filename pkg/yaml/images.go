@@ -12,8 +12,11 @@ import (
 	"strings"
 )
 
+const CIRCLECI_API_TOKEN = "CIRCLECI_API_TOKEN"
 const DOCKER_EMAIL = "DOCKER_EMAIL"
 const DOCKER_AUTH = "DOCKER_AUTH"
+const DOCKER_ACCOUNT = "DOCKER_ACCOUNT"
+const TEST_MODE = "TEST_MODE"
 
 func (this *Image) Validate(c Context) error {
 	// Check required vars
@@ -56,10 +59,15 @@ func (this *Artifact) circleci(c Context) (*circleci.Config, int64, error) {
 		return nil, 0, errors.New("Project not in format of <user>/<proj>: " + this.Project)
 	}
 
+	token, ok := c[CIRCLECI_API_TOKEN].(string)
+	if !ok {
+		return nil, 0, errors.New("CIRCLECI_API_TOKEN not a string.")
+	}
+
 	api := circleci.Config{
 		User:     parts[0],
 		Project:  parts[1],
-		ApiToken: c["CIRCLECI_API_TOKEN"].(string),
+		ApiToken: token,
 	}
 	build, err := strconv.ParseInt(this.BuildNumber, 10, 64)
 	if err != nil {
@@ -147,9 +155,16 @@ func docker_config(c Context) (*docker.Config, error) {
 	if !ok {
 		return nil, errors.New("DOCKER_AUTH not a string")
 	}
+
+	account, ok := c[DOCKER_ACCOUNT].(string)
+	if !ok {
+		return nil, errors.New("DOCKER_ACCOUNT not a string")
+	}
+
 	return &docker.Config{
-		Email: email,
-		Auth:  auth,
+		Email:   email,
+		Auth:    auth,
+		Account: account,
 	}, nil
 }
 
@@ -190,6 +205,29 @@ func (this *Image) Prepare(c Context) error {
 }
 
 func (this *Image) Execute(c Context) error {
+
+	docker_config, err := docker_config(c)
+	if err != nil {
+		return nil
+	}
+	_, docker_config.TestMode = c[TEST_MODE]
+
+	image, err := docker_config.NewTaggedImage(this.RepoId, this.Dockerfile)
+	if err != nil {
+		return err
+	}
+
+	err = image.Build()
+	if err != nil {
+		return err
+	}
+
+	log.Println("Finished building", this.Name, "Now pushing.")
+
+	err = image.Push()
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

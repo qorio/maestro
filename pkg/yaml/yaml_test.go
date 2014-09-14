@@ -305,14 +305,14 @@ func (suite *YamlTests) TestVariableSubstitution(c *C) {
 
 const yml = `
 var:
+  #TEST_MODE: 1
   DOCKER_ACCOUNT: lab616
   DOCKER_EMAIL: davidc616@gmail.com
   DOCKER_AUTH: bGFiNjE2OmxhYjYxNgc==
-  PASSPORT_IMAGE_TAG: 292
   CIRCLECI_API_TOKEN: 76681eca1d76e43f6535589def6756a27723d8e0
   BUILD_NUMBER: 292
   DOCKER_DIR: $HOME/go/src/github.com/qorio/maestro/docker
-  KEY_DIR: $HOME/go/src/github.com/qorio/maestro/environments/dev/.ssh
+  KEY_DIR: $HOME/go/src/github.com/qorio/maestro/decrypt/environments/dev/.ssh
 
 artifact:
   passport:
@@ -325,7 +325,7 @@ artifact:
 image:
   passport:
      dockerfile: "{{.DOCKER_DIR}}/passport/Dockerfile"
-     image: qorio/passport:{{.PASSPORT_IMAGE_TAG}}
+     image: "{{.DOCKER_ACCOUNT}}/passport:{{.BUILD_NUMBER}}"
      artifacts:
        - passport
 
