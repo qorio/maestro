@@ -182,6 +182,7 @@ func (this *Image) Prepare(c Context) error {
 	}
 
 	// set up dockercfg file
+	log.Println("Setting up .dockercfg")
 	f := filepath.Join(os.Getenv("HOME"), ".dockercfg")
 	fi, err := os.Stat(f)
 	switch {
@@ -197,6 +198,7 @@ func (this *Image) Prepare(c Context) error {
 		if err != nil {
 			return err
 		}
+		log.Println("Created dockercfg.")
 	default:
 		return err
 	}
