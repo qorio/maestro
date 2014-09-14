@@ -35,7 +35,7 @@ dependencies:
 ## Customize test commands
 test:
   override:
-    - godep go test -v -check.vv -check.f TestExecute ./pkg/...
+    - godep go test ./pkg/... -v -check.vv -check.f TestExecute
 
 ## Customize deployment commands
 deployment:
