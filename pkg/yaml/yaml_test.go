@@ -305,7 +305,7 @@ func (suite *YamlTests) TestVariableSubstitution(c *C) {
 
 const yml = `
 var:
-  #TEST_MODE: 1
+  TEST_MODE: 1
   DOCKER_ACCOUNT: qoriolabs
   DOCKER_EMAIL: docker@qoriolabs.com
   DOCKER_AUTH: cW9yaW9sYWJzOlFvcmlvMWxhYnMh
@@ -364,7 +364,7 @@ resource:
 
   instance:
     gce-host-0:
-      keyfile: "{{.KEY_DIR}}/gce-qoriolabsdev"
+      keypair: "{{.KEY_DIR}}/gce-qoriolabsdev"
       cloud: gce
       project: qoriolabsdev
       internal-ip: 192.30.252.154
@@ -378,7 +378,7 @@ resource:
         db:
            dev_db: /data
     gce-host-1:
-      keyfile: "{{.KEY_DIR}}/gce-qoriolabsdev"
+      keypair: "{{.KEY_DIR}}/gce-qoriolabsdev"
       cloud: gce
       project: qoriolabsdev
       internal-ip: 192.30.252.155

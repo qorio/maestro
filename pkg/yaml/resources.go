@@ -26,16 +26,30 @@ func (this *Disk) Finish(c Context) error {
 	return nil
 }
 
+func checkFile(p string) error {
+	fi, err := os.Stat(p)
+	if err != nil {
+		return errors.New(fmt.Sprint("File missing:", p, "err=", err))
+	}
+	if fi.IsDir() {
+		return errors.New(fmt.Sprint("Is a dir:", p))
+	}
+	return nil
+}
+
 func (this *Instance) Validate(c Context) error {
 	c.eval(&this.Cloud)
 	c.eval(&this.Project)
-	c.eval(&this.Keyfile)
-	fi, err := os.Stat(this.Keyfile)
-	if err != nil {
-		return errors.New(fmt.Sprint("Missing keyfile at", this.Keyfile, ":", err))
+	c.eval(&this.Keypair)
+	// private key
+	privateKey := this.Keypair
+	if err := checkFile(privateKey); err != nil {
+		return err
 	}
-	if fi.IsDir() {
-		return errors.New(fmt.Sprint("Keyfile", this.Keyfile, "is a directory."))
+
+	publicKey := this.Keypair + ".pub"
+	if err := checkFile(publicKey); err != nil {
+		return err
 	}
 
 	return nil

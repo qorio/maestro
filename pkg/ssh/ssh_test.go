@@ -1,6 +1,8 @@
 package ssh
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	. "gopkg.in/check.v1"
 	"os"
 	"testing"
@@ -47,6 +49,22 @@ Ln2N5VFmCszDwgXpzVxvND2Wud5Omg1C2OsWesE62GOR7z1dbcDkCg==
 
 const gce_test_server = "146.148.41.142"
 const gce_test_user = "test"
+
+func (suite *SSHTests) TestParsingPrivateKey(c *C) {
+	block, rest := pem.Decode([]byte(rsa_key))
+	c.Assert(block.Type, Equals, "RSA PRIVATE KEY")
+	c.Log("rest=", string(rest))
+
+	pk, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	c.Assert(err, Equals, nil)
+	c.Assert(pk, Not(Equals), nil)
+}
+
+func (suite *SSHTests) TestParsingPublicKey(c *C) {
+	pk, err := ParsePublicKey([]byte(rsa_public_key))
+	c.Assert(err, Equals, nil)
+	c.Log("user=", pk.User)
+}
 
 func (suite *SSHTests) TestExecute(c *C) {
 

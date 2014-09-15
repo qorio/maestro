@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"strings"
 )
 
 func ParseKey(file string) (ssh.Signer, error) {
@@ -24,6 +25,36 @@ func ParseKey(file string) (ssh.Signer, error) {
 type sshClient struct {
 	config *ssh.ClientConfig
 	client *ssh.Client
+}
+
+type PublicKey struct {
+	Algo  string
+	Bytes []byte
+	User  string
+	Host  string
+}
+
+func ParsePublicKeyFile(keyfile string) (*PublicKey, error) {
+	keybytes, err := ioutil.ReadFile(keyfile)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublicKey(keybytes)
+}
+
+func ParsePublicKey(keyBytes []byte) (*PublicKey, error) {
+	parts := strings.Split(string(keyBytes), " ")
+	if len(parts) != 3 {
+		return nil, errors.New("Bad format")
+	}
+
+	contact := strings.Split(strings.Trim(parts[2], " "), "@")
+	return &PublicKey{
+		Algo:  strings.Trim(parts[0], " "),
+		Bytes: []byte(parts[1]),
+		User:  contact[0],
+		Host:  contact[1],
+	}, nil
 }
 
 func KeyFileAuthMethod(keyfile string) (ssh.AuthMethod, error) {

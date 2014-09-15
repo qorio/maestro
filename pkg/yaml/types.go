@@ -62,7 +62,8 @@ type Volume struct {
 }
 type VolumeLabel string
 type Instance struct {
-	Keyfile        string                                 `yaml:"keyfile"`
+	Keypair        string                                 `yaml:"keypair"`
+	User           string                                 `yaml:"user"`
 	Cloud          string                                 `yaml:"cloud"`
 	Project        string                                 `yaml:"project"`
 	InternalIp     Ip                                     `yaml:"internal-ip"`
