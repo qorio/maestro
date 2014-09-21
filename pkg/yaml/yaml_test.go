@@ -305,7 +305,7 @@ func (suite *YamlTests) TestVariableSubstitution(c *C) {
 
 const yml = `
 var:
-  TEST_MODE: 0
+  #TEST_MODE: 0
   DOCKER_ACCOUNT: qoriolabs
   DOCKER_EMAIL: docker@qoriolabs.com
   DOCKER_AUTH: cW9yaW9sYWJzOlFvcmlvMWxhYnMh
