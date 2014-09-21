@@ -14,11 +14,12 @@ type Runnable interface {
 
 type ArtifactKey string
 type Artifact struct {
-	Project     string `yaml:"project"`
-	Source      string `yaml:"source"`
-	BuildNumber string `yaml:"build"`
-	Artifact    string `yaml:"artifact"`
-	Platform    string `yaml:"platform"`
+	Project        string `yaml:"project"`
+	Source         string `yaml:"source"`
+	SourceApiToken string `yaml:"source-api-token"`
+	BuildNumber    string `yaml:"build"`
+	Artifact       string `yaml:"artifact"`
+	Platform       string `yaml:"platform"`
 
 	Name ArtifactKey
 }

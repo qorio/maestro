@@ -12,7 +12,6 @@ import (
 	"strings"
 )
 
-const CIRCLECI_API_TOKEN = "CIRCLECI_API_TOKEN"
 const DOCKER_EMAIL = "DOCKER_EMAIL"
 const DOCKER_AUTH = "DOCKER_AUTH"
 const DOCKER_ACCOUNT = "DOCKER_ACCOUNT"
@@ -59,15 +58,10 @@ func (this *Artifact) circleci(c Context) (*circleci.Config, int64, error) {
 		return nil, 0, errors.New("Project not in format of <user>/<proj>: " + this.Project)
 	}
 
-	token, ok := c[CIRCLECI_API_TOKEN].(string)
-	if !ok {
-		return nil, 0, errors.New("CIRCLECI_API_TOKEN not a string.")
-	}
-
 	api := circleci.Config{
 		User:     parts[0],
 		Project:  parts[1],
-		ApiToken: token,
+		ApiToken: this.SourceApiToken,
 	}
 	build, err := strconv.ParseInt(this.BuildNumber, 10, 64)
 	if err != nil {
@@ -91,8 +85,8 @@ func (this *Artifact) Validate(c Context) error {
 	// Currently only support circleci
 	switch this.Source {
 	case "circleci":
-		if _, has := c["CIRCLECI_API_TOKEN"]; !has {
-			return errors.New("CIRCLECI_API_TOKEN var is missing")
+		if this.SourceApiToken == "" {
+			return errors.New("CIRCLECI requires source-api-token to be set.")
 		} else {
 			api, build, err := this.circleci(c)
 			if err != nil {

@@ -17,7 +17,7 @@ VOLUME ["/data", "/config"]
 WORKDIR /root
 
 # Define default command.
-CMD ["/root/passport", "--logtostderr", "--auth_public_key_file=/config/testAuthKey.pub"]
+CMD ["/root/passport", "--logtostderr", "--auth_public_key_file=/config/testAuthKey.pub", "--mongo_hosts=mongodb"]
 
 # Expose ports.
 
