@@ -336,15 +336,17 @@ image:
        - passport
 
 container:
+  mongodb:
+      image: mongo:2.7.5
+      ssh:
+        # Name the container as mongo
+        - docker run -d -v {{.instance.volumes.db.mount}}/mongo:/data/db --name mongo {{.image.id}}
   passport:
       image: passport
       ssh:
          - echo "Host {{.instance.name}} running {{.image.id}} build {{.BUILD_NUMBER}}"
-         - docker run -d -p 5050:5050 -v {{.instance.volumes.config.mount}}:/static/conf:ro --name passport_{{.BUILD_NUMBER}} {{.image.id}}
-  mongodb:
-      image: mongo:2.7.5
-      ssh:
-        - docker run -d -p 27017:27017 -v {{.instance.volumes.db.mount}}/mongo:/data/db --name mongodb {{.image.id}}
+         # Use container linking to reference the mongo container (see above), which is mapped in /etc/host as 'mongodb'
+         - docker run -d -P -v {{.instance.volumes.config.mount}}:/static/conf:ro --link mongo:mongodb --name passport_{{.BUILD_NUMBER}} {{.image.id}}
 
 service:
   passport:
