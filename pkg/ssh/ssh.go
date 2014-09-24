@@ -1,12 +1,18 @@
 package ssh
 
 import (
+	"bufio"
+	"bytes"
 	"code.google.com/p/go.crypto/ssh"
 	"code.google.com/p/go.crypto/ssh/agent"
 	"errors"
+	"fmt"
+	"github.com/golang/glog"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -114,4 +120,68 @@ func (this *sshClient) RunCommandStdout(cmd string) ([]byte, error) {
 	}
 	defer session.Close()
 	return session.Output(cmd)
+}
+
+const (
+	SCP_PUSH_BEGIN_FILE = "C"
+	SCP_PUSH_END        = "\x00"
+)
+
+func (this *sshClient) CopyFile(srcFile, destFile string) error {
+	src, err := os.Open(srcFile)
+	if err != nil {
+		return err
+	}
+	stat, err := src.Stat()
+	if err != nil {
+		return err
+	}
+	return this.Copy(src, stat.Mode(), stat.Size(), destFile)
+}
+
+func (this *sshClient) CopyBytes(data []byte, perm os.FileMode, destFile string) error {
+	src := bytes.NewBuffer(data)
+	return this.Copy(src, perm, int64(src.Len()), destFile)
+}
+
+func (this *sshClient) Copy(data io.Reader, perm os.FileMode, size int64, destFile string) error {
+	session, err := this.client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	go func() {
+		r, _ := session.StdoutPipe()
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			glog.Infoln("scp-remote:", scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			glog.Warningln("Err", err)
+		}
+	}()
+	go func() {
+		w, _ := session.StdinPipe()
+		defer w.Close()
+
+		perm := fmt.Sprintf("%#o", uint32(perm))
+		// According to https://blogs.oracle.com/janp/entry/how_the_scp_protocol_works
+		// Print the file content
+		glog.Infoln("scp-local:", SCP_PUSH_BEGIN_FILE+perm, size, filepath.Base(destFile))
+
+		fmt.Fprintln(w, SCP_PUSH_BEGIN_FILE+perm, size, filepath.Base(destFile))
+		io.Copy(w, data)
+		fmt.Fprint(w, SCP_PUSH_END)
+
+		glog.Infoln("scp-local: completed")
+	}()
+	glog.Infoln("scp-local: Staring with /usr/bin/scp -qrt " + filepath.Dir(destFile))
+	err = session.Run("/usr/bin/scp -t " + filepath.Dir(destFile))
+	if err != nil {
+		glog.Infoln("Error", err)
+		return err
+	}
+
+	return nil
 }

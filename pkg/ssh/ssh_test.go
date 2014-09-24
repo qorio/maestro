@@ -3,9 +3,12 @@ package ssh
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	. "gopkg.in/check.v1"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestSsh(t *testing.T) { TestingT(t) }
@@ -91,6 +94,84 @@ func (suite *SSHTests) TestAgent(c *C) {
 	c.Assert(err, Equals, nil)
 	{
 		stdout, err := ssh_client.RunCommandStdout("ls -al /")
+		c.Log(string(stdout), err)
+	}
+}
+
+func (suite *SSHTests) TestCopyFile(c *C) {
+	// Test with the .bash_history file
+	bash_history := filepath.Join(os.Getenv("HOME"), ".bash_history")
+	dest := fmt.Sprintf("/home/test/bash_history-%d", time.Now().Unix())
+	stat, err := os.Stat(bash_history)
+	if err != nil {
+		c.Log("Skipping test because we can't find ", bash_history)
+		return
+	}
+	c.Log("source=", stat.Name(), "dest=", dest)
+
+	auth, err := KeyBytesAuthMethod([]byte(rsa_key))
+	c.Assert(err, Equals, nil)
+
+	ssh_client, err := NewClient(gce_test_user, gce_test_server, auth)
+	c.Assert(err, Equals, nil)
+	{
+		stdout, err := ssh_client.RunCommandStdout("pwd")
+		c.Log(string(stdout), err)
+
+		err = ssh_client.CopyFile(bash_history, dest)
+		c.Log(err)
+
+		stdout, err = ssh_client.RunCommandStdout("ls -al")
+		c.Log(string(stdout), err)
+
+		stdout, err = ssh_client.RunCommandStdout("rm -f " + dest)
+		c.Log(string(stdout), err)
+
+		stdout, err = ssh_client.RunCommandStdout("ls -al")
+		c.Log(string(stdout), err)
+	}
+}
+
+func (suite *SSHTests) TestCallDocker(c *C) {
+
+	auth, err := KeyBytesAuthMethod([]byte(rsa_key))
+	c.Assert(err, Equals, nil)
+
+	ssh_client, err := NewClient(gce_test_user, gce_test_server, auth)
+	c.Assert(err, Equals, nil)
+	{
+		stdout, err := ssh_client.RunCommandStdout("docker ps")
+		c.Log(string(stdout), err)
+	}
+}
+
+func (suite *SSHTests) TestCopyBytes(c *C) {
+
+	data := []byte(`{"https://index.docker.io/v1/":{"auth":"cW9yaW9sYWJzOlFvcmlvMWxhYnMh","email":"docker@qoriolabs.com"}}`)
+
+	dest := fmt.Sprintf("/home/test/dockercfg-%d", time.Now().Unix())
+	auth, err := KeyBytesAuthMethod([]byte(rsa_key))
+	c.Assert(err, Equals, nil)
+
+	ssh_client, err := NewClient(gce_test_user, gce_test_server, auth)
+	c.Assert(err, Equals, nil)
+	{
+		stdout, err := ssh_client.RunCommandStdout("ls -al")
+		c.Log(string(stdout), err)
+
+		err = ssh_client.CopyBytes(data, 0644, dest)
+		c.Log(err)
+
+		stdout, err = ssh_client.RunCommandStdout("ls -al")
+		c.Log(string(stdout), err)
+
+		stdout, err = ssh_client.RunCommandStdout("cat " + dest)
+		c.Log(string(stdout), err)
+
+		stdout, err = ssh_client.RunCommandStdout("rm -f " + dest)
+		c.Log(string(stdout), err)
+
+		stdout, err = ssh_client.RunCommandStdout("ls -al")
 		c.Log(string(stdout), err)
 	}
 }
