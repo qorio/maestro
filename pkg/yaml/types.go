@@ -150,7 +150,7 @@ func (this runnableMap) Finish(c Context) error {
 
 func (this runnableMap) apply_sequential(phase string, c Context, f func(Context, Runnable) error) error {
 	for k, runnable := range this {
-		log.Print(phase + ": " + k.(string))
+		log.Println(phase, ":", k)
 		err := f(c, runnable)
 		if err != nil {
 			return err
