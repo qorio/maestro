@@ -4,9 +4,13 @@ package yaml
 // resources and artifacts.
 
 type Context map[string]interface{}
-type Runnable interface {
+
+type Verifiable interface {
 	Validate(c Context) (bool, error)
 	InDesiredState(c Context) (bool, error)
+}
+
+type Runnable interface {
 	Prepare(c Context) error
 	Execute(c Context) error
 	Finish(c Context) error
@@ -76,6 +80,19 @@ type Instance struct {
 }
 
 type ServiceKey string
+
+// Example of service section.  For each service section (service:), each
+// service (e.g. 'passport') contains a map of container ('passport') running on
+// vm instances identified by the label ('dev').
+//
+// service:
+//   passport:
+//       - mongodb: db
+//       - passport: dev
+//   passport-prod:
+//       - mongodb-prod: prod-db
+//       - passport: prod
+//       - nginx: lb
 type ServiceSection map[ServiceKey][]map[ContainerKey]InstanceLabel
 type Service struct {
 	Name    ServiceKey
@@ -99,4 +116,41 @@ type MaestroDoc struct {
 
 	// Parsed and populated
 	Services map[ServiceKey]*Service
+}
+
+type runnableMap map[interface{}]Runnable
+
+func (this runnableMap) Validate(c Context) error {
+	return this.apply_sequential("VALIDATE", c, func(cc Context, rr Runnable) error {
+		return rr.Finish(cc)
+	})
+}
+
+func (this runnableMap) Prepare(c Context) error {
+	return this.apply_sequential("PREPARE", c, func(cc Context, rr Runnable) error {
+		return rr.Prepare(cc)
+	})
+}
+
+func (this runnableMap) Execute(c Context) error {
+	return this.apply_sequential("EXECUTE", c, func(cc Context, rr Runnable) error {
+		return rr.Execute(cc)
+	})
+}
+
+func (this runnableMap) Finish(c Context) error {
+	return this.apply_sequential("FINISH", c, func(cc Context, rr Runnable) error {
+		return rr.Finish(cc)
+	})
+}
+
+func (this runnableMap) apply_sequential(phase string, c Context, f func(Context, Runnable) error) error {
+	for k, runnable := range this {
+		log.Print(phase + ": " + k.(string))
+		err := f(c, runnable)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

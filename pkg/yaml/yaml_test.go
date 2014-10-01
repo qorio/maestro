@@ -456,7 +456,7 @@ func (suite *YamlTests) TestValidate(c *C) {
 
 }
 
-func (suite *YamlTests) TestPrepare(c *C) {
+func (suite *YamlTests) TestPrepareImages(c *C) {
 
 	config := &MaestroDoc{}
 	err := config.LoadFromBytes([]byte(yml))
@@ -477,7 +477,7 @@ func (suite *YamlTests) TestPrepare(c *C) {
 	c.Assert(err, Equals, nil)
 }
 
-func (suite *YamlTests) TestExecute(c *C) {
+func (suite *YamlTests) TestExecuteImages(c *C) {
 
 	config := &MaestroDoc{}
 	err := config.LoadFromBytes([]byte(yml))
@@ -490,9 +490,9 @@ func (suite *YamlTests) TestExecute(c *C) {
 	err = config.Validate(context)
 	c.Assert(err, Equals, nil)
 
-	err = config.Prepare(context)
+	err = config.GetImages().Prepare(context)
 	c.Assert(err, Equals, nil)
 
-	err = config.Execute(context)
+	err = config.GetImages().Execute(context)
 	c.Assert(err, Equals, nil)
 }

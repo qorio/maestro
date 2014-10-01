@@ -347,6 +347,14 @@ func (this *MaestroDoc) Validate(c Context) error {
 	return err
 }
 
+func (this *MaestroDoc) GetImages() Runnable {
+	m := make(runnableMap)
+	for k, v := range this.Images {
+		m[k] = v
+	}
+	return runnableMap(m)
+}
+
 func (this *MaestroDoc) InDesiredState(c Context) (bool, error) {
 	return true, nil
 }
