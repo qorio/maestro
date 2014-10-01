@@ -1,5 +1,9 @@
 package yaml
 
+import (
+	"log"
+)
+
 // Interface to encapsulate build/ deployment behavior of different
 // resources and artifacts.
 
