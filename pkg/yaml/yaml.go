@@ -28,7 +28,7 @@ func (this Context) eval(f *string) string {
 
 const TEST_MODE = "TEST_MODE"
 
-func (this Context) test_only() bool {
+func (this Context) test_mode() bool {
 	if v, h := this[TEST_MODE]; h {
 		if b, ok := v.(string); ok {
 			return "true" == strings.ToLower(b)

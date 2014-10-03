@@ -175,7 +175,17 @@ func (this *Image) Prepare(c Context) error {
 	}
 
 	// set up dockercfg file
+
+	if c.test_mode() {
+		log.Print("TEST")
+	}
+
 	log.Println("Setting up .dockercfg")
+
+	if c.test_mode() {
+		return nil
+	}
+
 	f := filepath.Join(os.Getenv("HOME"), ".dockercfg")
 	fi, err := os.Stat(f)
 	switch {
@@ -205,7 +215,7 @@ func (this *Image) Execute(c Context) error {
 	if err != nil {
 		return nil
 	}
-	docker_config.TestMode = c.test_only()
+	docker_config.TestMode = c.test_mode()
 
 	image, err := docker_config.NewTaggedImage(this.RepoId, this.Dockerfile)
 	if err != nil {
