@@ -469,7 +469,7 @@ func (suite *YamlTests) TestPrepareImages(c *C) {
 	err = config.Validate(context)
 	c.Assert(err, Equals, nil)
 
-	err = config.Prepare(context)
+	err = config.runnableImages().Prepare(context)
 	c.Assert(err, Equals, nil)
 
 	// Check downloaded binary exists
@@ -490,9 +490,9 @@ func (suite *YamlTests) TestExecuteImages(c *C) {
 	err = config.Validate(context)
 	c.Assert(err, Equals, nil)
 
-	err = config.GetImages().Prepare(context)
+	err = config.runnableImages().Prepare(context)
 	c.Assert(err, Equals, nil)
 
-	err = config.GetImages().Execute(context)
+	err = config.runnableImages().Execute(context)
 	c.Assert(err, Equals, nil)
 }

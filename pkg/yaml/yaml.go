@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strings"
 	"text/template"
 )
 
@@ -23,6 +24,20 @@ func (this Context) eval(f *string) string {
 	s := eval(*f, this)
 	*f = s
 	return old
+}
+
+const TEST_MODE = "TEST_MODE"
+
+func (this Context) test_only() bool {
+	if v, h := this[TEST_MODE]; h {
+		if b, ok := v.(string); ok {
+			return "true" == strings.ToLower(b)
+		} else {
+			return false
+		}
+	} else {
+		return false
+	}
 }
 
 func eval(tpl string, m map[string]interface{}) string {
@@ -306,6 +321,10 @@ func (this *MaestroDoc) Deploy() error {
 	return nil
 }
 
+func (this *MaestroDoc) InDesiredState(c Context) (bool, error) {
+	return true, nil
+}
+
 func (this *MaestroDoc) Validate(c Context) error {
 	// Validate the doc
 	// TODO The resources and artifacts are independent so we can run in parallel
@@ -347,7 +366,13 @@ func (this *MaestroDoc) Validate(c Context) error {
 	return err
 }
 
-func (this *MaestroDoc) GetImages() Runnable {
+func (this *MaestroDoc) all_runnables() []func() Runnable {
+	return []func() Runnable{
+		this.runnableImages,
+	}
+}
+
+func (this *MaestroDoc) runnableImages() Runnable {
 	m := make(runnableMap)
 	for k, v := range this.Images {
 		m[k] = v
@@ -355,15 +380,25 @@ func (this *MaestroDoc) GetImages() Runnable {
 	return runnableMap(m)
 }
 
-func (this *MaestroDoc) InDesiredState(c Context) (bool, error) {
-	return true, nil
+func (this *MaestroDoc) runnableServices() Runnable {
+	m := make(runnableMap)
+	for k, v := range this.Services {
+		m[k] = v
+	}
+	return runnableMap(m)
+}
+
+func (this *MaestroDoc) runnableDeployments() Runnable {
+	m := make(runnableMap)
+	for k, v := range this.Services {
+		m[k] = v
+	}
+	return runnableMap(m)
 }
 
 func (this *MaestroDoc) Prepare(c Context) error {
-	// For now, we just prepare the images
-	for _, image := range this.Images {
-		err := image.Prepare(c)
-		if err != nil {
+	for _, prepare := range this.all_runnables() {
+		if err := prepare().Prepare(c); err != nil {
 			return err
 		}
 	}
@@ -371,10 +406,8 @@ func (this *MaestroDoc) Prepare(c Context) error {
 }
 
 func (this *MaestroDoc) Execute(c Context) error {
-	// For now, we just prepare the images
-	for _, image := range this.Images {
-		err := image.Execute(c)
-		if err != nil {
+	for _, execute := range this.all_runnables() {
+		if err := execute().Execute(c); err != nil {
 			return err
 		}
 	}
@@ -382,5 +415,10 @@ func (this *MaestroDoc) Execute(c Context) error {
 }
 
 func (this *MaestroDoc) Finish(c Context) error {
+	for _, finish := range this.all_runnables() {
+		if err := finish().Finish(c); err != nil {
+			return err
+		}
+	}
 	return nil
 }

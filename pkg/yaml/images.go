@@ -15,7 +15,6 @@ import (
 const DOCKER_EMAIL = "DOCKER_EMAIL"
 const DOCKER_AUTH = "DOCKER_AUTH"
 const DOCKER_ACCOUNT = "DOCKER_ACCOUNT"
-const TEST_MODE = "TEST_MODE"
 
 func (this *Image) Validate(c Context) error {
 	// Check required vars
@@ -206,7 +205,7 @@ func (this *Image) Execute(c Context) error {
 	if err != nil {
 		return nil
 	}
-	_, docker_config.TestMode = c[TEST_MODE]
+	docker_config.TestMode = c.test_only()
 
 	image, err := docker_config.NewTaggedImage(this.RepoId, this.Dockerfile)
 	if err != nil {
