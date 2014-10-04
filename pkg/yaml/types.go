@@ -84,6 +84,20 @@ type Instance struct {
 	disks map[VolumeLabel]*Volume
 }
 
+// Job - has container, instance labels, and resource requirements
+type JobKey string
+type Job struct {
+	Container            ContainerKey    `yaml:"container"`
+	InstanceLabels       []InstanceLabel `yaml:"instance-labels"`
+	ResourceRequirements *Requirement    `yaml:"requires"`
+}
+
+type Requirement struct {
+	Cores int `yaml:"cores"`
+	RAM   int `yaml:"memory-gb"`
+	Disk  int `yaml:"disk-gb"`
+}
+
 type ServiceKey string
 
 // Example of service section.  For each service section (service:), each
@@ -116,6 +130,7 @@ type MaestroDoc struct {
 	Containers     map[ContainerKey]*Container                     `yaml:"container"`
 	Disks          map[DiskKey]*Disk                               `yaml:"disk"`
 	Instances      map[InstanceKey]*Instance                       `yaml:"instance"`
+	Jobs           map[JobKey]*Job                                 `yaml:"job"`
 
 	// Parsed and populated
 	services map[ServiceKey]*Service

@@ -33,6 +33,7 @@ func (this *Artifact) Validate(c Context) error {
 	c.eval(&this.BuildNumber)
 	c.eval(&this.Artifact)
 	c.eval(&this.Platform)
+	c.eval(&this.SourceApiToken)
 
 	filter, err := circleci.MatchPathAndBinary(this.Platform, string(this.name))
 	if err != nil {

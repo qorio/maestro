@@ -49,8 +49,14 @@ instance:
 `
 
 const yml = `
+# Imports here
+# import:
+#   - $HOME/file1.yml
+#   - $HOME/file2.yml
+
 var:
   LIVE_MODE: 0
+  CIRCLECI_TOKEN: ea735505e0fae755201ea1511c4fa9c55f825846
   DOCKER_ACCOUNT: qoriolabs
   DOCKER_EMAIL: docker@qoriolabs.com
   DOCKER_AUTH: cW9yaW9sYWJzOlFvcmlvMWxhYnMh
@@ -65,14 +71,14 @@ artifact:
   auth_key:
     project: qorio/passport
     source: circleci
-    source-api-token: ea735505e0fae755201ea1511c4fa9c55f825846
+    source-api-token: '{{.CIRCLECI_TOKEN}}'
     build: "{{.BUILD_NUMBER}}"
     artifact: testAuthKey.pub
 
   passport:
     project: qorio/passport
     source: circleci
-    source-api-token: ea735505e0fae755201ea1511c4fa9c55f825846
+    source-api-token: '{{.CIRCLECI_TOKEN}}'
     build: "{{.BUILD_NUMBER}}"
     artifact: passport
 
@@ -115,11 +121,18 @@ container:
 job:
   mongodb:
       container: mongodb
-      instances: db
+      instance-labels:
+           - db
+      requires:
+           cores: 16
+           memory-gb: 1000
+           disk-gb: 1000
+
   passport:
       container: passport
-      instances: dev
-
+      instance-labels:
+           - dev
+           - db
 service:
   passport:
       - mongodb: db
@@ -232,7 +245,7 @@ func (suite *YamlTests) TestSchema(c *C) {
 	c.Assert(len(doc.Deploys), Equals, 1)
 	c.Assert(len(doc.Imports), Equals, 2)
 
-	c.Assert(len(doc.Vars), Equals, 7)
+	c.Assert(len(doc.Vars), Equals, 8)
 	c.Assert(doc.Vars["DOCKER_AUTH"], Equals, "cW9yaW9sYWJzOlFvcmlvMWxhYnMh")
 
 	artifacts := doc.Artifacts
@@ -258,6 +271,14 @@ func (suite *YamlTests) TestSchema(c *C) {
 	disks := doc.Disks
 	c.Assert(len(disks), Equals, 2)
 	c.Assert(disks["dev_config"].Cloud, Equals, "gce")
+
+	jobs := doc.Jobs
+	c.Assert(len(jobs), Equals, 2)
+	c.Assert(jobs["mongodb"].Container, Equals, ContainerKey("mongodb"))
+	c.Assert(jobs["passport"].Container, Equals, ContainerKey("passport"))
+	c.Assert(jobs["mongodb"].InstanceLabels[0], Equals, InstanceLabel("db"))
+	c.Assert(jobs["passport"].InstanceLabels[0], Equals, InstanceLabel("dev"))
+	c.Assert(jobs["passport"].InstanceLabels[1], Equals, InstanceLabel("db"))
 }
 
 func (suite *YamlTests) TestProcessImages(c *C) {
