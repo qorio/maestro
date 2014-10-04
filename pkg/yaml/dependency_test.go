@@ -78,9 +78,9 @@ func (suite *YamlDependenciesTests) TestRun(c *C) {
 	task0.DependsOn(task10)
 
 	context := make(Context)
-	context[TEST_MODE] = "true"
+	context[LIVE_MODE] = "true"
 
-	c.Assert(context.test_mode(), Equals, true)
+	c.Assert(context.test_mode(), Equals, false)
 
 	task0.Run(context)
 	c.Assert(len(task0.task_errors), Equals, 0)
@@ -118,9 +118,9 @@ func (suite *YamlDependenciesTests) TestRunParallel(c *C) {
 	task0.DependsOn(task10, task11)
 
 	context := make(Context)
-	context[TEST_MODE] = "false"
+	context[LIVE_MODE] = "false"
 
-	c.Assert(context.test_mode(), Equals, false)
+	c.Assert(context.test_mode(), Equals, true)
 
 	task0.Run(context)
 	c.Assert(len(task0.task_errors), Equals, 0)
@@ -160,9 +160,9 @@ func (suite *YamlDependenciesTests) TestRunParallelWithError(c *C) {
 	task0.DependsOn(task10, task11)
 
 	context := make(Context)
-	context[TEST_MODE] = "false"
+	context[LIVE_MODE] = "false"
 
-	c.Assert(context.test_mode(), Equals, false)
+	c.Assert(context.test_mode(), Equals, true)
 
 	task0.Run(context)
 	c.Assert(len(task0.task_errors), Not(Equals), 0)
@@ -176,6 +176,7 @@ func (suite *YamlDependenciesTests) TestRunParallelWithError(c *C) {
 }
 
 func (suite *YamlDependenciesTests) TestRunParallelWithErrorInParllelTask(c *C) {
+
 	queue = []int{}
 
 	task0 := alloc_task(t1(0))
@@ -200,7 +201,7 @@ func (suite *YamlDependenciesTests) TestRunParallelWithErrorInParllelTask(c *C) 
 	task0.DependsOn(task10, task11)
 
 	context := make(Context)
-	context[TEST_MODE] = "false"
+	context[LIVE_MODE] = "true"
 
 	c.Assert(context.test_mode(), Equals, false)
 

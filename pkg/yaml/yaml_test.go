@@ -14,6 +14,39 @@ type YamlTests struct{}
 
 var _ = Suite(&YamlTests{})
 
+func (suite *YamlTests) TestTestModeCheck(c *C) {
+	m := make(Context)
+	m[LIVE_MODE] = "true"
+	c.Assert(m.test_mode(), Equals, false)
+
+	m[LIVE_MODE] = "1"
+	c.Assert(m.test_mode(), Equals, false)
+
+	m[LIVE_MODE] = "TRUE"
+	c.Assert(m.test_mode(), Equals, false)
+
+	m[LIVE_MODE] = "junk"
+	c.Assert(m.test_mode(), Equals, true)
+
+	m[LIVE_MODE] = 1
+	c.Assert(m.test_mode(), Equals, false)
+
+	m[LIVE_MODE] = 0
+	c.Assert(m.test_mode(), Equals, true)
+
+	m[LIVE_MODE] = "0"
+	c.Assert(m.test_mode(), Equals, true)
+
+	m[LIVE_MODE] = "false"
+	c.Assert(m.test_mode(), Equals, true)
+
+	m[LIVE_MODE] = "FALSE"
+	c.Assert(m.test_mode(), Equals, true)
+
+	delete(m, LIVE_MODE)
+	c.Assert(m.test_mode(), Equals, true)
+}
+
 func (suite *YamlTests) TestSchema(c *C) {
 
 	doc := MaestroDoc{}
@@ -305,7 +338,7 @@ func (suite *YamlTests) TestVariableSubstitution(c *C) {
 
 const yml = `
 var:
-  #TEST_MODE: 0
+  #LIVE_MODE: 1
   DOCKER_ACCOUNT: qoriolabs
   DOCKER_EMAIL: docker@qoriolabs.com
   DOCKER_AUTH: cW9yaW9sYWJzOlFvcmlvMWxhYnMh

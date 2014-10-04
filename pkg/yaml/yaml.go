@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 	"sort"
-	"strings"
+	"strconv"
 	"text/template"
 )
 
@@ -26,18 +26,18 @@ func (this Context) eval(f *string) string {
 	return old
 }
 
-const TEST_MODE = "TEST_MODE"
+const LIVE_MODE = "LIVE_MODE"
 
 func (this Context) test_mode() bool {
-	if v, h := this[TEST_MODE]; h {
-		if b, ok := v.(string); ok {
-			return "true" == strings.ToLower(b)
-		} else {
-			return false
+	test := true
+	if v, ok := this[LIVE_MODE].(string); ok {
+		if b, err := strconv.ParseBool(v); err == nil {
+			test = !b
 		}
-	} else {
-		return false
+	} else if v, ok := this[LIVE_MODE].(int); ok {
+		return v == 0
 	}
+	return test
 }
 
 func eval(tpl string, m map[string]interface{}) string {
