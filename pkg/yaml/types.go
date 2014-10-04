@@ -29,7 +29,7 @@ type Artifact struct {
 	Artifact       string `yaml:"artifact"`
 	Platform       string `yaml:"platform"`
 
-	Name ArtifactKey
+	name ArtifactKey
 }
 
 type ImageKey string
@@ -38,7 +38,7 @@ type Image struct {
 	RepoId       string        `yaml:"image"`
 	ArtifactKeys []ArtifactKey `yaml:"artifacts"`
 
-	Name      ImageKey
+	name      ImageKey
 	artifacts []*Artifact
 }
 
@@ -47,9 +47,9 @@ type Container struct {
 	ImageRef string    `yaml:"image"`
 	Ssh      []*string `yaml:"ssh"`
 
-	Name           ContainerKey
-	TargetInstance *Instance
-	TargetImage    *Image
+	name           ContainerKey
+	targetInstance *Instance
+	targetImage    *Image
 }
 
 type DiskKey string
@@ -58,7 +58,7 @@ type Disk struct {
 	Type  string `yaml:"disk-type"`
 	Size  string `yaml:"size-gb"`
 
-	Name DiskKey
+	name DiskKey
 }
 
 type Ip string
@@ -79,8 +79,9 @@ type Instance struct {
 	ExternalIp     Ip                                     `yaml:"external-ip"`
 	InstanceLabels []InstanceLabel                        `yaml:"labels"`
 	VolumeSection  map[VolumeLabel]map[DiskKey]MountPoint `yaml:"volumes"`
-	Name           InstanceKey
-	Disks          map[VolumeLabel]*Volume
+
+	name  InstanceKey
+	disks map[VolumeLabel]*Volume
 }
 
 type ServiceKey string
@@ -113,13 +114,11 @@ type MaestroDoc struct {
 	Artifacts      map[ArtifactKey]*Artifact                       `yaml:"artifact"`
 	Images         map[ImageKey]*Image                             `yaml:"image"`
 	Containers     map[ContainerKey]*Container                     `yaml:"container"`
-	Resources      struct {
-		Disks     map[DiskKey]*Disk         `yaml:"disk"`
-		Instances map[InstanceKey]*Instance `yaml:"instance"`
-	} `yaml:"resource"`
+	Disks          map[DiskKey]*Disk                               `yaml:"disk"`
+	Instances      map[InstanceKey]*Instance                       `yaml:"instance"`
 
 	// Parsed and populated
-	Services map[ServiceKey]*Service
+	services map[ServiceKey]*Service
 }
 
 type runnableMap map[interface{}]Runnable

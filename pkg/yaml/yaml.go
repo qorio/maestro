@@ -51,7 +51,18 @@ func eval(tpl string, m map[string]interface{}) string {
 	}
 }
 
+func (this *MaestroDoc) String() string {
+	bytes, err := yaml.Marshal(this)
+	if err != nil {
+		return err.Error()
+	} else {
+		return string(bytes)
+	}
+}
+
 func (this *MaestroDoc) LoadFromFile(filename string) error {
+	this.init()
+
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
@@ -65,6 +76,8 @@ func (this *MaestroDoc) LoadFromFile(filename string) error {
 }
 
 func (this *MaestroDoc) LoadFromBytes(buff []byte) error {
+	this.init()
+
 	err := yaml.Unmarshal(buff, this)
 	if err != nil {
 		return err
@@ -79,56 +92,91 @@ func (this *MaestroDoc) LoadFromBytes(buff []byte) error {
 		} else {
 			imported.merge(this)
 		}
-		this = imported
 	}
 	return err
 }
 
-func (this *MaestroDoc) merge(other *MaestroDoc) error {
-	for _, d := range other.Deploys {
-		this.Deploys = append(this.Deploys, d)
+func (this *MaestroDoc) init() {
+	if this.Imports == nil {
+		this.Imports = []YmlFilePath{}
 	}
-	for k, v := range other.Vars {
-		if _, has := this.Vars[k]; has {
+	if this.Deploys == nil {
+		this.Deploys = []ServiceKey{}
+	}
+	if this.Vars == nil {
+		this.Vars = make(map[string]string)
+	}
+	if this.ServiceSection == nil {
+		this.ServiceSection = make(map[ServiceKey][]map[ContainerKey]InstanceLabel)
+	}
+	if this.Artifacts == nil {
+		this.Artifacts = make(map[ArtifactKey]*Artifact)
+	}
+	if this.Images == nil {
+		this.Images = make(map[ImageKey]*Image)
+	}
+	if this.Containers == nil {
+		this.Containers = make(map[ContainerKey]*Container)
+	}
+	if this.Disks == nil {
+		this.Disks = make(map[DiskKey]*Disk)
+	}
+	if this.Instances == nil {
+		this.Instances = make(map[InstanceKey]*Instance)
+	}
+	if this.services == nil {
+		this.services = make(map[ServiceKey]*Service)
+	}
+}
+
+func (this *MaestroDoc) merge(other *MaestroDoc) error {
+	from := this
+	to := other
+
+	for _, d := range from.Deploys {
+		to.Deploys = append(to.Deploys, d)
+	}
+	for k, v := range from.Vars {
+		if _, has := to.Vars[k]; has {
 			log.Println("Warning: Var[", k, "] to be overriden.")
 		}
-		this.Vars[k] = v
+		to.Vars[k] = v
 	}
-	for k, v := range other.Artifacts {
-		if _, has := this.Artifacts[k]; has {
+	for k, v := range from.Artifacts {
+		if _, has := to.Artifacts[k]; has {
 			log.Println("Warning: Artifact[", k, "] to be overriden.")
 		}
-		this.Artifacts[k] = v
+		to.Artifacts[k] = v
 	}
-	for k, v := range other.Images {
-		if _, has := this.Images[k]; has {
+	for k, v := range from.Images {
+		if _, has := to.Images[k]; has {
 			log.Println("Warning: Docker[", k, "] to be overriden.")
 		}
-		this.Images[k] = v
+		to.Images[k] = v
 	}
-	for k, v := range other.Containers {
-		if _, has := this.Containers[k]; has {
+	for k, v := range from.Containers {
+		if _, has := to.Containers[k]; has {
 			log.Println("Warning: Container[", k, "] to be overriden.")
 		}
-		this.Containers[k] = v
+		to.Containers[k] = v
 	}
-	for k, v := range other.Resources.Disks {
-		if _, has := this.Resources.Disks[k]; has {
+	for k, v := range from.Disks {
+		if _, has := to.Disks[k]; has {
 			log.Println("Warning: Disk[", k, "] to be overriden.")
 		}
-		this.Resources.Disks[k] = v
+		to.Disks[k] = v
 	}
-	for k, v := range other.Resources.Instances {
-		if _, has := this.Resources.Instances[k]; has {
+	for k, v := range from.Instances {
+		if _, has := to.Instances[k]; has {
 			log.Println("Warning: Instance[", k, "] to be overriden.")
 		}
-		this.Resources.Instances[k] = v
+		to.Instances[k] = v
 	}
-	for k, v := range other.ServiceSection {
-		if _, has := this.ServiceSection[k]; has {
+	for k, v := range from.ServiceSection {
+		if _, has := to.ServiceSection[k]; has {
 			log.Println("Warning: Service[", k, "] to be overriden.")
 		}
-		this.ServiceSection[k] = v
+		to.ServiceSection[k] = v
 	}
 
 	return nil
@@ -149,14 +197,14 @@ func (this *MaestroDoc) build_services() error {
 	// Build the services.  Each service is a composition of a list of container and instance label pair.
 	// It means for a given service, there are 1 or more containers to run and they are to be run in sequence.
 	// For a given container, it is to be run over a number of instances, as identified by the instance label.
-	this.Services = make(map[ServiceKey]*Service)
+	this.services = make(map[ServiceKey]*Service)
 	for k, service := range this.ServiceSection {
 		serviceObject := &Service{
 			Name:    k,
 			Targets: make([][]*Container, 0),
 			Spec:    service,
 		}
-		this.Services[k] = serviceObject
+		this.services[k] = serviceObject
 		// Go through each set of containers and assign the instances to run them.
 		// The sets will then be started in sequence. Within each set of containers (per instance),
 		// the containers are started in parallel.
@@ -167,13 +215,13 @@ func (this *MaestroDoc) build_services() error {
 					container_instances := make([]*Container, 0)
 
 					instance_keys := make([]string, 0)
-					for instance_key, _ := range this.Resources.Instances {
+					for instance_key, _ := range this.Instances {
 						instance_keys = append(instance_keys, string(instance_key))
 					}
 					sort.Strings(instance_keys)
 
 					for _, instance_key := range instance_keys {
-						instance := this.Resources.Instances[InstanceKey(instance_key)]
+						instance := this.Instances[InstanceKey(instance_key)]
 						matched := false
 						for _, label := range instance.InstanceLabels {
 							if label == instanceLabel {
@@ -184,7 +232,7 @@ func (this *MaestroDoc) build_services() error {
 						if matched {
 							copy := &Container{}
 							copy.clone_from(container)
-							copy.TargetInstance = instance
+							copy.targetInstance = instance
 							container_instances = append(container_instances, copy)
 						}
 					}
@@ -203,10 +251,10 @@ func (this *MaestroDoc) build_services() error {
 
 func (this *MaestroDoc) process_images() error {
 	for k, artifact := range this.Artifacts {
-		artifact.Name = ArtifactKey(k)
+		artifact.name = ArtifactKey(k)
 	}
 	for k, image := range this.Images {
-		image.Name = k
+		image.name = k
 		for _, ak := range this.Images[k].ArtifactKeys {
 			if artifact, has := this.Artifacts[ak]; has {
 				if image.artifacts == nil {
@@ -221,14 +269,14 @@ func (this *MaestroDoc) process_images() error {
 
 func (this *MaestroDoc) process_containers() error {
 	for k, container := range this.Containers {
-		container.Name = ContainerKey(k)
+		container.name = ContainerKey(k)
 		// containers either reference images or builds
 
 		if image, has := this.Images[ImageKey(container.ImageRef)]; has {
-			container.TargetImage = image
+			container.targetImage = image
 		} else {
 			// assumes that the image references a docker hub image
-			container.TargetImage = nil
+			container.targetImage = nil
 		}
 		// Containers also reference instances which are bound later at the time
 		// when we launch container in instances in parallel.
@@ -238,18 +286,18 @@ func (this *MaestroDoc) process_containers() error {
 }
 
 func (this *MaestroDoc) process_resources() error {
-	for k, a := range this.Resources.Disks {
-		a.Name = DiskKey(k)
+	for k, a := range this.Disks {
+		a.name = DiskKey(k)
 	}
-	for k, instance := range this.Resources.Instances {
-		instance.Name = InstanceKey(k)
-		instance.Disks = make(map[VolumeLabel]*Volume)
+	for k, instance := range this.Instances {
+		instance.name = InstanceKey(k)
+		instance.disks = make(map[VolumeLabel]*Volume)
 		for vl, m := range instance.VolumeSection {
 			for dk, mp := range m {
-				if _, has := this.Resources.Disks[dk]; !has {
+				if _, has := this.Disks[dk]; !has {
 					return errors.New(fmt.Sprint("No disk '", dk, "' found."))
 				}
-				instance.Disks[vl] = &Volume{
+				instance.disks[vl] = &Volume{
 					Disk:       dk,
 					MountPoint: string(mp),
 				}
@@ -330,7 +378,7 @@ func (this *MaestroDoc) Validate(c Context) error {
 	// TODO The resources and artifacts are independent so we can run in parallel
 
 	var err error
-	for k, disk := range this.Resources.Disks {
+	for k, disk := range this.Disks {
 		log.Print("Validating disk " + k)
 		err = disk.Validate(c)
 		if err != nil {
@@ -338,7 +386,7 @@ func (this *MaestroDoc) Validate(c Context) error {
 			return err
 		}
 	}
-	for k, instance := range this.Resources.Instances {
+	for k, instance := range this.Instances {
 		log.Print("Validating instance " + k)
 		err = instance.Validate(c)
 		if err != nil {
@@ -355,7 +403,7 @@ func (this *MaestroDoc) Validate(c Context) error {
 		}
 	}
 	log.Println("Image validation done.")
-	for k, service := range this.Services {
+	for k, service := range this.services {
 		log.Print("Validating service " + k)
 		err = service.Validate(c)
 		if err != nil {
@@ -382,7 +430,7 @@ func (this *MaestroDoc) runnableImages() Runnable {
 
 func (this *MaestroDoc) runnableServices() Runnable {
 	m := make(runnableMap)
-	for k, v := range this.Services {
+	for k, v := range this.services {
 		m[k] = v
 	}
 	return runnableMap(m)
@@ -390,7 +438,7 @@ func (this *MaestroDoc) runnableServices() Runnable {
 
 func (this *MaestroDoc) runnableDeployments() Runnable {
 	m := make(runnableMap)
-	for k, v := range this.Services {
+	for k, v := range this.services {
 		m[k] = v
 	}
 	return runnableMap(m)

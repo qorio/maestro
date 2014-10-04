@@ -7,7 +7,7 @@ import (
 
 func (this *Instance) export_vars() map[string]interface{} {
 	vm := make(map[string]map[string]interface{})
-	for k, volume := range this.Disks {
+	for k, volume := range this.disks {
 		vm[string(k)] = map[string]interface{}{
 			"mount": volume.MountPoint,
 			"disk":  volume.Disk,
@@ -15,14 +15,14 @@ func (this *Instance) export_vars() map[string]interface{} {
 	}
 	return map[string]interface{}{
 		"volumes": vm,
-		"name":    this.Name,
+		"name":    this.name,
 	}
 }
 
 func (this *Image) export_vars() map[string]interface{} {
 	artifacts := make(map[string]map[string]interface{})
 	for _, a := range this.artifacts {
-		artifacts[string(a.Name)] = map[string]interface{}{
+		artifacts[string(a.name)] = map[string]interface{}{
 			"project":  a.Project,
 			"source":   a.Source,
 			"build":    a.BuildNumber,
@@ -34,7 +34,7 @@ func (this *Image) export_vars() map[string]interface{} {
 	return map[string]interface{}{
 		"id":         this.RepoId,
 		"dockerfile": this.Dockerfile,
-		"name":       this.Name,
+		"name":       this.name,
 		"artifacts":  artifacts,
 	}
 }
@@ -43,29 +43,29 @@ func (this *Service) Validate(c Context) error {
 	// Do variable substitutions
 	for _, group := range this.Targets {
 		for _, container := range group {
-			if container.TargetInstance == nil {
-				return errors.New(fmt.Sprint("No instance assigned for container", container.Name))
+			if container.targetInstance == nil {
+				return errors.New(fmt.Sprint("No instance assigned for container", container.name))
 			}
 
 			cc := make(Context)
 			cc.copy_from(c)
 			cc.eval(&container.ImageRef)
 
-			if container.TargetImage == nil && container.ImageRef == "" {
-				return errors.New(fmt.Sprint("No image for container", container.Name))
+			if container.targetImage == nil && container.ImageRef == "" {
+				return errors.New(fmt.Sprint("No image for container", container.name))
 			}
-			if container.TargetImage == nil {
+			if container.targetImage == nil {
 				cc["image"] = map[string]interface{}{
 					"id": container.ImageRef,
 				}
 			} else {
-				cc["image"] = container.TargetImage.export_vars()
+				cc["image"] = container.targetImage.export_vars()
 			}
-			cc["instance"] = container.TargetInstance.export_vars()
+			cc["instance"] = container.targetInstance.export_vars()
 			for i, ssh := range container.Ssh {
 				old := cc.eval(ssh)
 				if *container.Ssh[i] == "" {
-					return errors.New(fmt.Sprint("Failed to evaluate '", old, "' for container", container.Name))
+					return errors.New(fmt.Sprint("Failed to evaluate '", old, "' for container", container.name))
 				}
 			}
 		}

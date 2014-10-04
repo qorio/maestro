@@ -34,7 +34,7 @@ func (this *Artifact) Validate(c Context) error {
 	c.eval(&this.Artifact)
 	c.eval(&this.Platform)
 
-	filter, err := circleci.MatchPathAndBinary(this.Platform, string(this.Name))
+	filter, err := circleci.MatchPathAndBinary(this.Platform, string(this.name))
 	if err != nil {
 		return err
 	}
@@ -48,15 +48,15 @@ func (this *Artifact) Validate(c Context) error {
 			if err != nil {
 				return err
 			}
-			log.Println("Checking availability of", this.Name, ", build", build)
+			log.Println("Checking availability of", this.name, ", build", build)
 			binaries, err := api.FetchBuildArtifacts(build, filter)
 			if err != nil {
 				return err
 			}
 			if len(binaries) == 0 {
-				return errors.New("Binary for " + string(this.Name) + " not found on " + this.Source)
+				return errors.New("Binary for " + string(this.name) + " not found on " + this.Source)
 			} else {
-				log.Println("Found binary for", this.Name, "from", this.Source, "path=", binaries[0].Path)
+				log.Println("Found binary for", this.name, "from", this.Source, "path=", binaries[0].Path)
 			}
 		}
 	default:
@@ -71,7 +71,7 @@ func (this *Artifact) Prepare(c Context) error {
 	if err != nil {
 		return err
 	}
-	filter, err := circleci.MatchPathAndBinary(this.Platform, string(this.Name))
+	filter, err := circleci.MatchPathAndBinary(this.Platform, string(this.name))
 	if err != nil {
 		return err
 	}
@@ -80,9 +80,9 @@ func (this *Artifact) Prepare(c Context) error {
 		return err
 	}
 	if len(binaries) == 0 {
-		return errors.New("Binary for " + string(this.Name) + " not found on " + this.Source)
+		return errors.New("Binary for " + string(this.name) + " not found on " + this.Source)
 	}
-	log.Println("Downloading binary", this.Name, "build", build, "to", dir)
+	log.Println("Downloading binary", this.name, "build", build, "to", dir)
 	bytes, err := binaries[0].Download(dir.(string))
 	if err != nil {
 		log.Println("error", err)

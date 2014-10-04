@@ -30,7 +30,7 @@ func (this *Image) Validate(c Context) error {
 	}
 
 	for _, artifact := range this.artifacts {
-		log.Println("Validating asset", artifact.Name)
+		log.Println("Validating asset", artifact.name)
 		if err := artifact.Validate(c); err != nil {
 			return err
 		}
@@ -140,7 +140,7 @@ func (this *Image) Execute(c Context) error {
 		return err
 	}
 
-	log.Println("Finished building", this.Name, "Now pushing.")
+	log.Println("Finished building", this.name, "Now pushing.")
 
 	err = image.Push()
 	if err != nil {
