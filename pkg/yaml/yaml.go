@@ -289,7 +289,7 @@ func (this *MaestroDoc) new_context() Context {
 	return context
 }
 
-func (this *MaestroDoc) Deploy() error {
+func (this *MaestroDoc) _Deploy() error {
 	if err := this.process_config(); err != nil {
 		return err
 	}
