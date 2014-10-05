@@ -27,9 +27,7 @@ instance:
       project: qoriolabsdev
       internal-ip: 192.30.252.154
       external-ip: 164.77.100.101
-      labels:
-        - dev
-        - db
+      labels: dev, db
       volumes:
         config:
            dev_config: /config
@@ -41,8 +39,7 @@ instance:
       project: qoriolabsdev
       internal-ip: 192.30.252.155
       external-ip: 164.77.100.102
-      labels:
-        - dev
+      labels: dev
       volumes:
         config:
            dev_config: /config
@@ -121,8 +118,7 @@ container:
 job:
   mongodb:
       container: mongodb
-      instance-labels:
-           - db
+      instance-labels: db
       requires:
            cores: 16
            memory-gb: 1000
@@ -130,13 +126,13 @@ job:
 
   passport:
       container: passport
-      instance-labels:
-           - dev
-           - db
+      instance-labels: dev, db
+
 service:
   passport:
-      - mongodb: db
-      - passport: dev
+     # These will be launched in order
+     - mongodb: 27017
+     - passport: 80, 7070
 `
 
 func TestYaml(t *testing.T) { TestingT(t) }
@@ -261,8 +257,8 @@ func (suite *YamlTests) TestSchema(c *C) {
 	c.Assert(containers["nginx"].ImageRef, Equals, "nginx:1.7.1")
 
 	service := doc.ServiceSection
-	c.Assert(service["passport"][0]["mongodb"], Equals, InstanceLabel("db"))
-	c.Assert(service["passport"][1]["passport"], Equals, InstanceLabel("dev"))
+	c.Assert(service["passport"][0]["mongodb"], Equals, JobPortList("27017"))
+	c.Assert(service["passport"][1]["passport"], Equals, JobPortList("80, 7070"))
 
 	instances := doc.Instances
 	c.Assert(len(instances), Equals, 2)
@@ -274,11 +270,11 @@ func (suite *YamlTests) TestSchema(c *C) {
 
 	jobs := doc.Jobs
 	c.Assert(len(jobs), Equals, 2)
-	c.Assert(jobs["mongodb"].Container, Equals, ContainerKey("mongodb"))
-	c.Assert(jobs["passport"].Container, Equals, ContainerKey("passport"))
-	c.Assert(jobs["mongodb"].InstanceLabels[0], Equals, InstanceLabel("db"))
-	c.Assert(jobs["passport"].InstanceLabels[0], Equals, InstanceLabel("dev"))
-	c.Assert(jobs["passport"].InstanceLabels[1], Equals, InstanceLabel("db"))
+	c.Assert(jobs["mongodb"].ContainerKey, Equals, ContainerKey("mongodb"))
+	c.Assert(jobs["passport"].ContainerKey, Equals, ContainerKey("passport"))
+	c.Assert(jobs["mongodb"].InstanceLabels, Equals, InstanceLabelList("db"))
+	c.Assert(jobs["passport"].InstanceLabels, Equals, InstanceLabelList("dev, db"))
+
 }
 
 func (suite *YamlTests) TestProcessImages(c *C) {
@@ -392,18 +388,18 @@ func (suite *YamlTests) TestValidate(c *C) {
 	c.Assert(err, Equals, nil)
 
 	c.Assert(len(config.services), Equals, 1)
-	c.Assert(config.services["passport"].Name, Equals, ServiceKey("passport"))
-	c.Assert(len(config.services["passport"].Targets), Equals, 2)
-	c.Assert(len(config.services["passport"].Targets[0]), Equals, 1) // 1 vm
-	c.Assert(len(config.services["passport"].Targets[1]), Equals, 2) // 2 vms
+	c.Assert(config.services["passport"].Name(), Equals, ServiceKey("passport"))
+	c.Assert(len(config.services["passport"].Targets()), Equals, 2)
+	c.Assert(len(config.services["passport"].Targets()[0]), Equals, 1) // 1 vm
+	c.Assert(len(config.services["passport"].Targets()[1]), Equals, 2) // 2 vms
 
-	db := config.services["passport"].Targets[0][0]
+	db := config.services["passport"].Targets()[0][0]
 	c.Assert(string(db.name), Equals, "mongodb")
 	c.Assert(string(db.ImageRef), Equals, "mongo:2.7.5")
 	c.Assert(db.targetInstance, Equals, config.Instances["gce-host-0"])
 	c.Assert(db.targetImage, Equals, config.Images["mongodb"])
 
-	fe := config.services["passport"].Targets[1]
+	fe := config.services["passport"].Targets()[1]
 	c.Assert(len(fe), Equals, 2)
 	c.Assert(fe[0].targetImage, Equals, config.Images["passport"])
 	c.Assert(fe[1].targetImage, Equals, config.Images["passport"])
@@ -422,16 +418,16 @@ func (suite *YamlTests) TestValidate(c *C) {
 
 	// If no errors, check the state of the service
 	passport_service := config.services[ServiceKey("passport")]
-	c.Assert(passport_service.Name, Equals, ServiceKey("passport"))
+	c.Assert(passport_service.Name(), Equals, ServiceKey("passport"))
 
-	mongo_db_containers := passport_service.Targets[0]
+	mongo_db_containers := passport_service.Targets()[0]
 	c.Assert(len(mongo_db_containers), Equals, 1)
 	db1 := mongo_db_containers[0]
 	c.Assert(db1.targetImage, Equals, (*Image)(nil))
 	c.Assert(db1.ImageRef, Equals, "mongo:2.7.5")
 	c.Assert(*db1.Ssh[0], Equals, "docker run -d -p 27017:27017 -v /data/mongo:/data/db --name mongodb mongo:2.7.5")
 
-	passport_containers := passport_service.Targets[1]
+	passport_containers := passport_service.Targets()[1]
 	c.Assert(len(passport_containers), Equals, 2)
 
 	s1 := passport_containers[0]

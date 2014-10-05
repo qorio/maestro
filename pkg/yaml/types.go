@@ -1,9 +1,5 @@
 package yaml
 
-import (
-	"log"
-)
-
 // Interface to encapsulate build/ deployment behavior of different
 // resources and artifacts.
 
@@ -61,6 +57,9 @@ type Disk struct {
 	name DiskKey
 }
 
+type CommaSeparatedList string
+
+type InstanceLabelList CommaSeparatedList
 type Ip string
 type InstanceKey string
 type MountPoint string
@@ -77,19 +76,29 @@ type Instance struct {
 	Project        string                                 `yaml:"project"`
 	InternalIp     Ip                                     `yaml:"internal-ip"`
 	ExternalIp     Ip                                     `yaml:"external-ip"`
-	InstanceLabels []InstanceLabel                        `yaml:"labels"`
+	InstanceLabels InstanceLabelList                      `yaml:"labels"`
 	VolumeSection  map[VolumeLabel]map[DiskKey]MountPoint `yaml:"volumes"`
 
-	name  InstanceKey
-	disks map[VolumeLabel]*Volume
+	name   InstanceKey
+	disks  map[VolumeLabel]*Volume
+	labels []InstanceLabel
 }
 
-// Job - has container, instance labels, and resource requirements
 type JobKey string
+type JobPortList CommaSeparatedList
+type ExposedPort int
+
+// Job - has container, instance labels, and resource requirements
 type Job struct {
-	Container            ContainerKey    `yaml:"container"`
-	InstanceLabels       []InstanceLabel `yaml:"instance-labels"`
-	ResourceRequirements *Requirement    `yaml:"requires"`
+	ContainerKey         ContainerKey      `yaml:"container"`
+	InstanceLabels       InstanceLabelList `yaml:"instance-labels"`
+	ResourceRequirements *Requirement      `yaml:"requires"`
+
+	name                JobKey
+	container           *Container
+	instance_labels     []InstanceLabel
+	instances           []*Instance
+	container_instances []*Container
 }
 
 type Requirement struct {
@@ -99,76 +108,33 @@ type Requirement struct {
 }
 
 type ServiceKey string
-
-// Example of service section.  For each service section (service:), each
-// service (e.g. 'passport') contains a map of container ('passport') running on
-// vm instances identified by the label ('dev').
-//
-// service:
-//   passport:
-//       - mongodb: db
-//       - passport: dev
-//   passport-prod:
-//       - mongodb-prod: prod-db
-//       - passport: prod
-//       - nginx: lb
-type ServiceSection map[ServiceKey][]map[ContainerKey]InstanceLabel
 type Service struct {
-	Name    ServiceKey
-	Targets [][]*Container
-	Spec    []map[ContainerKey]InstanceLabel
+	// Name    ServiceKey
+	// Targets [][]*Container
+	// Spec    []map[JobKey][]ExposedPort
+	// Jobs    []*Job
+
+	name     ServiceKey
+	jobs     []*Job
+	port_map map[JobKey][]ExposedPort
 }
+
 type YmlFilePath string
 
 type MaestroDoc struct {
-	Imports        []YmlFilePath                                   `yaml:"import"`
-	Deploys        []ServiceKey                                    `yaml:"deploy"`
-	Vars           map[string]string                               `yaml:"var"`
-	ServiceSection map[ServiceKey][]map[ContainerKey]InstanceLabel `yaml:"service"`
-	Artifacts      map[ArtifactKey]*Artifact                       `yaml:"artifact"`
-	Images         map[ImageKey]*Image                             `yaml:"image"`
-	Containers     map[ContainerKey]*Container                     `yaml:"container"`
-	Disks          map[DiskKey]*Disk                               `yaml:"disk"`
-	Instances      map[InstanceKey]*Instance                       `yaml:"instance"`
-	Jobs           map[JobKey]*Job                                 `yaml:"job"`
+	Imports        []YmlFilePath                           `yaml:"import"`
+	Deploys        []ServiceKey                            `yaml:"deploy"`
+	Vars           map[string]string                       `yaml:"var"`
+	ServiceSection map[ServiceKey][]map[JobKey]JobPortList `yaml:"service"`
+	Artifacts      map[ArtifactKey]*Artifact               `yaml:"artifact"`
+	Images         map[ImageKey]*Image                     `yaml:"image"`
+	Containers     map[ContainerKey]*Container             `yaml:"container"`
+	Disks          map[DiskKey]*Disk                       `yaml:"disk"`
+	Instances      map[InstanceKey]*Instance               `yaml:"instance"`
+	Jobs           map[JobKey]*Job                         `yaml:"job"`
 
 	// Parsed and populated
 	services map[ServiceKey]*Service
 }
 
 type runnableMap map[interface{}]Runnable
-
-func (this runnableMap) Validate(c Context) error {
-	return this.apply_sequential("VALIDATE", c, func(cc Context, rr Runnable) error {
-		return rr.Finish(cc)
-	})
-}
-
-func (this runnableMap) Prepare(c Context) error {
-	return this.apply_sequential("PREPARE", c, func(cc Context, rr Runnable) error {
-		return rr.Prepare(cc)
-	})
-}
-
-func (this runnableMap) Execute(c Context) error {
-	return this.apply_sequential("EXECUTE", c, func(cc Context, rr Runnable) error {
-		return rr.Execute(cc)
-	})
-}
-
-func (this runnableMap) Finish(c Context) error {
-	return this.apply_sequential("FINISH", c, func(cc Context, rr Runnable) error {
-		return rr.Finish(cc)
-	})
-}
-
-func (this runnableMap) apply_sequential(phase string, c Context, f func(Context, Runnable) error) error {
-	for k, runnable := range this {
-		log.Println(phase, ":", k)
-		err := f(c, runnable)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}

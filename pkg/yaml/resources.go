@@ -70,3 +70,20 @@ func (this *Instance) Execute(c Context) error {
 func (this *Instance) Finish(c Context) error {
 	return nil
 }
+
+func (this *Instance) can_take(job *Job) bool {
+	return intersect(this.labels, job.instance_labels)
+}
+
+// For sorting by instance key
+type ByInstanceKey []*Instance
+
+func (a ByInstanceKey) Len() int {
+	return len(a)
+}
+func (a ByInstanceKey) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+func (a ByInstanceKey) Less(i, j int) bool {
+	return a[i].name < a[j].name
+}

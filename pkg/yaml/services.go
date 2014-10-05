@@ -39,9 +39,26 @@ func (this *Image) export_vars() map[string]interface{} {
 	}
 }
 
+func (this *Service) Name() ServiceKey {
+	return this.name
+}
+
+func (this *Service) Targets() [][]*Container {
+	// all the container instances for all the jobs
+	list := [][]*Container{}
+	for _, job := range this.jobs {
+		clist := []*Container{}
+		for _, c := range job.container_instances {
+			clist = append(clist, c)
+		}
+		list = append(list, clist)
+	}
+	return list
+}
+
 func (this *Service) Validate(c Context) error {
 	// Do variable substitutions
-	for _, group := range this.Targets {
+	for _, group := range this.Targets() {
 		for _, container := range group {
 			if container.targetInstance == nil {
 				return errors.New(fmt.Sprint("No instance assigned for container", container.name))

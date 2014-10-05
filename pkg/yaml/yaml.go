@@ -107,7 +107,7 @@ func (this *MaestroDoc) init() {
 		this.Vars = make(map[string]string)
 	}
 	if this.ServiceSection == nil {
-		this.ServiceSection = make(map[ServiceKey][]map[ContainerKey]InstanceLabel)
+		this.ServiceSection = make(map[ServiceKey][]map[JobKey]JobPortList)
 	}
 	if this.Artifacts == nil {
 		this.Artifacts = make(map[ArtifactKey]*Artifact)
@@ -172,6 +172,12 @@ func (this *MaestroDoc) merge(other *MaestroDoc) error {
 		}
 		to.Instances[k] = v
 	}
+	for k, v := range from.Jobs {
+		if _, has := to.Jobs[k]; has {
+			log.Println("Warning: Job[", k, "] to be overriden.")
+		}
+		to.Jobs[k] = v
+	}
 	for k, v := range from.ServiceSection {
 		if _, has := to.ServiceSection[k]; has {
 			log.Println("Warning: Service[", k, "] to be overriden.")
@@ -193,56 +199,89 @@ func (this *Container) clone_from(other *Container) {
 	this.Ssh = ssh
 }
 
-func (this *MaestroDoc) build_services() error {
+func (this *MaestroDoc) process_jobs() error {
+	for k, job := range this.Jobs {
+
+		container, has := this.Containers[job.ContainerKey]
+		if !has {
+			return errors.New(fmt.Sprintf("container-%s-not-found", job.ContainerKey))
+		}
+		job.name = JobKey(k)
+		job.container = container
+		job.instance_labels = job.InstanceLabels.parse()
+
+		if job.container == nil {
+			return errors.New(fmt.Sprintf("job-no-container-template:%s", job.name))
+		}
+
+		if len(this.Instances) == 0 {
+			return errors.New("no-instances-specified-in-doc")
+		}
+
+		// Go through the instances known to this doc and see if an instance can take the job
+		matches := []*Instance{}
+		for _, instance := range this.Instances {
+			if instance.can_take(job) {
+				matches = append(matches, instance)
+			}
+		}
+		sort.Sort(ByInstanceKey(matches))
+		job.instances = matches
+
+		if len(job.instances) == 0 {
+			return errors.New(fmt.Sprintf("job-no-matched-instances:%s", job.name))
+		}
+
+		// now create container instances that are to be run on each machine instance
+		job.container_instances = []*Container{}
+		for _, instance := range job.instances {
+			// Spawn a container instance
+			copy := &Container{}
+			copy.clone_from(job.container)
+			copy.targetInstance = instance
+			job.container_instances = append(job.container_instances, copy)
+		}
+		if len(job.container_instances) == 0 {
+			return errors.New(fmt.Sprintf("job-no-matched-container-instances:%s", job.name))
+		}
+
+	}
+	return nil
+}
+
+func (this *MaestroDoc) process_services() error {
 	// Build the services.  Each service is a composition of a list of container and instance label pair.
 	// It means for a given service, there are 1 or more containers to run and they are to be run in sequence.
 	// For a given container, it is to be run over a number of instances, as identified by the instance label.
 	this.services = make(map[ServiceKey]*Service)
-	for k, service := range this.ServiceSection {
-		serviceObject := &Service{
-			Name:    k,
-			Targets: make([][]*Container, 0),
-			Spec:    service,
+	for service_key, job_key_port_list := range this.ServiceSection {
+
+		service := &Service{
+			name:     service_key,
+			jobs:     []*Job{},
+			port_map: map[JobKey][]ExposedPort{},
 		}
-		this.services[k] = serviceObject
-		// Go through each set of containers and assign the instances to run them.
-		// The sets will then be started in sequence. Within each set of containers (per instance),
-		// the containers are started in parallel.
-		for _, keyLabelMap := range service {
-			for containerKey, instanceLabel := range keyLabelMap {
-				if container, has := this.Containers[containerKey]; has {
-					// Now get the instances for a given label:
-					container_instances := make([]*Container, 0)
+		this.services[service_key] = service
 
-					instance_keys := make([]string, 0)
-					for instance_key, _ := range this.Instances {
-						instance_keys = append(instance_keys, string(instance_key))
-					}
-					sort.Strings(instance_keys)
+		// Here is an array of map (job name : port list) pairs
+		for _, job_and_ports := range job_key_port_list {
 
-					for _, instance_key := range instance_keys {
-						instance := this.Instances[InstanceKey(instance_key)]
-						matched := false
-						for _, label := range instance.InstanceLabels {
-							if label == instanceLabel {
-								matched = true
-								break
-							}
-						}
-						if matched {
-							copy := &Container{}
-							copy.clone_from(container)
-							copy.targetInstance = instance
-							container_instances = append(container_instances, copy)
-						}
-					}
-					serviceObject.Targets = append(serviceObject.Targets, container_instances)
-					if len(serviceObject.Targets) == 0 {
-						return errors.New("No instances matched to run container " + string(containerKey))
-					}
-				} else {
-					return errors.New("Unknown container key:" + string(containerKey))
+			for job_key, job_port_list := range job_and_ports {
+
+				// Get the job to determine which containers to run
+				job, has := this.Jobs[job_key]
+
+				if !has {
+					return errors.New(fmt.Sprintf("job-not-found%s", job_key))
 				}
+
+				exposed_ports, err := job_port_list.parse()
+				if err != nil {
+					return errors.New("bad-port-list:" + err.Error())
+				}
+
+				service.jobs = append(service.jobs, job)
+				service.port_map[job_key] = exposed_ports
 			}
 		}
 	}
@@ -292,6 +331,7 @@ func (this *MaestroDoc) process_resources() error {
 	for k, instance := range this.Instances {
 		instance.name = InstanceKey(k)
 		instance.disks = make(map[VolumeLabel]*Volume)
+		instance.labels = instance.InstanceLabels.parse()
 		for vl, m := range instance.VolumeSection {
 			for dk, mp := range m {
 				if _, has := this.Disks[dk]; !has {
@@ -321,8 +361,12 @@ func (this *MaestroDoc) process_config() error {
 	if err := this.process_containers(); err != nil {
 		return err
 	}
+	// Jobs to run
+	if err := this.process_jobs(); err != nil {
+		return err
+	}
 	// Match what to where:
-	if err := this.build_services(); err != nil {
+	if err := this.process_services(); err != nil {
 		return err
 	}
 	return nil
