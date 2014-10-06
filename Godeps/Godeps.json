@@ -2,13 +2,18 @@
 	"ImportPath": "github.com/qorio/maestro",
 	"GoVersion": "go1.3.1",
 	"Packages": [
-		"./pkg/..."
+		"./..."
 	],
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go.crypto/ssh",
 			"Comment": "null-221",
 			"Rev": "6e881b5273dfffbadb6a76a61d3c39a71e3588d1"
+		},
+		{
+			"ImportPath": "github.com/deckarep/golang-set",
+			"Comment": "v1-23-gb5afabd",
+			"Rev": "b5afabde9c4a5fa00d0559a11ae72a93991be7d2"
 		},
 		{
 			"ImportPath": "github.com/golang/glog",
