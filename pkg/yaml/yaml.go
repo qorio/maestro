@@ -288,10 +288,14 @@ func (this *MaestroDoc) process_services() error {
 	return nil
 }
 
-func (this *MaestroDoc) process_images() error {
+func (this *MaestroDoc) process_artifacts() error {
 	for k, artifact := range this.Artifacts {
 		artifact.name = ArtifactKey(k)
 	}
+	return nil
+}
+
+func (this *MaestroDoc) process_images() error {
 	for k, image := range this.Images {
 		image.name = k
 		for _, ak := range this.Images[k].ArtifactKeys {
@@ -324,10 +328,14 @@ func (this *MaestroDoc) process_containers() error {
 	return nil
 }
 
-func (this *MaestroDoc) process_resources() error {
+func (this *MaestroDoc) process_disks() error {
 	for k, a := range this.Disks {
 		a.name = DiskKey(k)
 	}
+	return nil
+}
+
+func (this *MaestroDoc) process_instances() error {
 	for k, instance := range this.Instances {
 		instance.name = InstanceKey(k)
 		instance.disks = make(map[VolumeLabel]*Volume)
@@ -348,13 +356,21 @@ func (this *MaestroDoc) process_resources() error {
 	return nil
 }
 
+// Performs any parsing and conversion of the yml; sets up the relationships
+// and parent-child relationships.
 func (this *MaestroDoc) process_config() error {
-	// What to run
-	if err := this.process_images(); err != nil {
+	// Resources available
+	if err := this.process_disks(); err != nil {
 		return err
 	}
-	// Where to run things
-	if err := this.process_resources(); err != nil {
+	if err := this.process_instances(); err != nil {
+		return err
+	}
+	// What to run
+	if err := this.process_artifacts(); err != nil {
+		return err
+	}
+	if err := this.process_images(); err != nil {
 		return err
 	}
 	// Containers to run
