@@ -1,8 +1,22 @@
 package yaml
 
 import (
+	"errors"
+	"fmt"
 	"log"
+	"os"
 )
+
+func checkFile(p string) error {
+	fi, err := os.Stat(p)
+	if err != nil {
+		return errors.New(fmt.Sprint("File missing:", p, "err=", err))
+	}
+	if fi.IsDir() {
+		return errors.New(fmt.Sprint("Is a dir:", p))
+	}
+	return nil
+}
 
 func (this runnableMap) Validate(c Context) error {
 	return this.apply_sequential("VALIDATE", c, func(cc Context, rr Runnable) error {
