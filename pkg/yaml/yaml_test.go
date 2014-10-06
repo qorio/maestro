@@ -12,16 +12,20 @@ const disks = `
 disk:
     dev_config:
       cloud: gce
-      disk-type: disk
-      size-gb: 100MB
+      type: disk
+      size: 100M
     dev_db:
       cloud: gce
-      disk-type: disk
-      size-gb: 100MB
+      type: disk
+      size: 100G
 `
 const instances = `
 instance:
     gce-host-0:
+      available:
+           cpu: 2
+           memory: 4G
+           disk: 10G  # ephemeral disk
       keypair: "{{.KEY_DIR}}/gce-qoriolabsdev"
       cloud: gce
       project: qoriolabsdev
@@ -34,6 +38,10 @@ instance:
         db:
            dev_db: /data
     gce-host-1:
+      available:
+           cpu: 2
+           memory: 4G
+           disk: 10G  # ephemeral disk
       keypair: "{{.KEY_DIR}}/gce-qoriolabsdev"
       cloud: gce
       project: qoriolabsdev
@@ -89,11 +97,19 @@ image:
 container:
   mongodb:
       image: mongo:2.7.5
+      requires:
+           cpu: 1
+           memory: 1G
+           disk: 200G
       ssh:
         # Name the container as mongo
         - docker run -d -p 27017:27017 -v {{.instance.volumes.db.mount}}/mongo:/data/db --name mongodb {{.image.id}}
   passport:
       image: passport
+      requires:
+           cpu: 1
+           memory: 1G
+           disk: 10G
       ssh:
          - echo "Host {{.instance.name}} running {{.image.id}} build {{.BUILD_NUMBER}}"
          # Use container linking to reference the mongo container (see above), which is mapped in /etc/host as 'mongodb'
@@ -120,9 +136,9 @@ job:
       container: mongodb
       instance-labels: db
       requires:
-           cores: 16
-           memory-gb: 1000
-           disk-gb: 1000
+           cpu: 16
+           memory: 1G
+           disk: 200G
 
   passport:
       container: passport

@@ -1,11 +1,7 @@
 package yaml
 
 import (
-	mapset "github.com/deckarep/golang-set"
 	"log"
-	"sort"
-	"strconv"
-	"strings"
 )
 
 func (this runnableMap) Validate(c Context) error {
@@ -41,40 +37,4 @@ func (this runnableMap) apply_sequential(phase string, c Context, f func(Context
 		}
 	}
 	return nil
-}
-
-func (this JobPortList) parse() ([]ExposedPort, error) {
-	tokens := strings.Split(string(this), ",")
-	sort.Strings(tokens)
-	ports := make([]ExposedPort, len(tokens))
-	for i, tok := range tokens {
-		if p, err := strconv.ParseInt(strings.TrimSpace(tok), 10, 64); err != nil {
-			return nil, err
-		} else {
-			ports[i] = ExposedPort(p)
-		}
-	}
-	return ports, nil
-}
-
-func (this InstanceLabelList) parse() []InstanceLabel {
-	tokens := strings.Split(string(this), ",")
-	sort.Strings(tokens)
-	labels := make([]InstanceLabel, len(tokens))
-	for i, tok := range tokens {
-		labels[i] = InstanceLabel(strings.TrimSpace(tok))
-	}
-	return labels
-}
-
-func new_set(this []InstanceLabel) mapset.Set {
-	set := mapset.NewSet()
-	for _, v := range this {
-		set.Add(v)
-	}
-	return set
-}
-
-func intersect(this, other []InstanceLabel) bool {
-	return new_set(this).Intersect(new_set(other)).Cardinality() > 0
 }

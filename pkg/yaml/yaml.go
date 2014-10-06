@@ -381,38 +381,6 @@ func (this *MaestroDoc) new_context() Context {
 	return context
 }
 
-func (this *MaestroDoc) _Deploy() error {
-	if err := this.process_config(); err != nil {
-		return err
-	}
-
-	context := this.new_context()
-	if err := this.Validate(context); err != nil {
-		return err
-	}
-
-	alreadyOk, err := this.InDesiredState(context)
-	if err != nil {
-		return err
-	}
-
-	if !alreadyOk {
-		err := this.Prepare(context)
-		if err != nil {
-			return err
-		}
-		err = this.Execute(context)
-		if err != nil {
-			return err
-		}
-		err = this.Finish(context)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (this *MaestroDoc) InDesiredState(c Context) (bool, error) {
 	return true, nil
 }

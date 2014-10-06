@@ -40,19 +40,38 @@ type Image struct {
 
 type ContainerKey string
 type Container struct {
-	ImageRef string    `yaml:"image"`
-	Ssh      []*string `yaml:"ssh"`
+	ResourceRequirements *Requirement `yaml:"requires"`
+	ImageRef             string       `yaml:"image"`
+	Ssh                  []*string    `yaml:"ssh"`
 
 	name           ContainerKey
 	targetInstance *Instance
 	targetImage    *Image
 }
 
+type SizeQuantityUnit string
+
+const (
+	TbFormat SizeQuantityUnit = "%dT"
+	GbFormat SizeQuantityUnit = "%dG"
+	MbFormat SizeQuantityUnit = "%dM"
+	KbFormat SizeQuantityUnit = "%dK"
+)
+
+type Resource struct {
+	CPU  int              `yaml:"cpu"`
+	RAM  SizeQuantityUnit `yaml:"memory"`
+	Disk SizeQuantityUnit `yaml:"disk"`
+
+	ram_mb  int
+	disk_mb int
+}
+
 type DiskKey string
 type Disk struct {
-	Cloud string `yaml:"cloud"`
-	Type  string `yaml:"disk-type"`
-	Size  string `yaml:"size-gb"`
+	Cloud string           `yaml:"cloud"`
+	Type  string           `yaml:"type"`
+	Size  SizeQuantityUnit `yaml:"size"`
 
 	name DiskKey
 }
@@ -70,6 +89,7 @@ type Volume struct {
 }
 type VolumeLabel string
 type Instance struct {
+	Resource       *Resource                              `yaml:"available"`
 	Keypair        string                                 `yaml:"keypair"`
 	User           string                                 `yaml:"user"`
 	Cloud          string                                 `yaml:"cloud"`
@@ -90,9 +110,11 @@ type ExposedPort int
 
 // Job - has container, instance labels, and resource requirements
 type Job struct {
-	ContainerKey         ContainerKey      `yaml:"container"`
-	InstanceLabels       InstanceLabelList `yaml:"instance-labels"`
-	ResourceRequirements *Requirement      `yaml:"requires"`
+	ContainerKey   ContainerKey      `yaml:"container"`
+	InstanceLabels InstanceLabelList `yaml:"instance-labels"`
+
+	// Global resource requirements
+	ResourceRequirements *Requirement `yaml:"requires"`
 
 	name                JobKey
 	container           *Container
@@ -101,19 +123,10 @@ type Job struct {
 	container_instances []*Container
 }
 
-type Requirement struct {
-	Cores int `yaml:"cores"`
-	RAM   int `yaml:"memory-gb"`
-	Disk  int `yaml:"disk-gb"`
-}
+type Requirement Resource
 
 type ServiceKey string
 type Service struct {
-	// Name    ServiceKey
-	// Targets [][]*Container
-	// Spec    []map[JobKey][]ExposedPort
-	// Jobs    []*Job
-
 	name     ServiceKey
 	jobs     []*Job
 	port_map map[JobKey][]ExposedPort
