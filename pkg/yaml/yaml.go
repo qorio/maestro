@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"reflect"
 	"sort"
 	"strconv"
 	"text/template"
@@ -27,6 +28,48 @@ func (this Context) eval(f *string) string {
 }
 
 const LIVE_MODE = "LIVE_MODE"
+
+func (this Context) bind_vars(s interface{}) {
+	t := reflect.TypeOf(s)
+	v := reflect.ValueOf(s)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+		v = reflect.Indirect(v)
+	}
+	if t.Kind() != reflect.Struct {
+		return
+	}
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		ft := f.Type
+		fv := v.Field(i)
+
+		if ft.Kind() == reflect.Ptr && ft.Elem().Kind() == reflect.String {
+			ft = ft.Elem()
+			fv = reflect.Indirect(fv)
+		}
+		if ft.Kind() == reflect.String {
+			tmp := fv.String()
+			this.eval(&tmp)
+			if fv.CanSet() && tmp != fv.String() {
+				fmt.Printf("%s.%s set to %s (was %s)\n", t.Name(), f.Name, tmp, fv.String())
+				fv.SetString(tmp)
+			}
+		}
+	}
+}
+
+func (this Context) log(format string, values ...interface{}) {
+	if this.test_mode() {
+		log.Printf("TEST -- "+format, values...)
+	} else {
+		log.Printf("LIVE -- "+format, values...)
+	}
+}
+
+func (this Context) error(format string, values ...interface{}) {
+	log.Printf(">>> ERROR "+format+"\n", values...)
+}
 
 func (this Context) test_mode() bool {
 	test := true
@@ -342,17 +385,40 @@ func (this *MaestroDoc) process_instances() error {
 		instance.labels = instance.InstanceLabels.parse()
 		for vl, m := range instance.VolumeSection {
 			for dk, mp := range m {
-				if _, has := this.Disks[dk]; !has {
+				d, has := this.Disks[dk]
+				if !has {
 					return errors.New(fmt.Sprint("No disk '", dk, "' found."))
 				}
 				instance.disks[vl] = &Volume{
 					Disk:       dk,
 					MountPoint: string(mp),
+					host:       instance,
+					disk:       d,
 				}
 			}
 		}
 	}
+	return nil
+}
 
+func (this *MaestroDoc) add_task(t *task) {
+	if this.tasks == nil {
+		this.tasks = []*task{}
+	}
+	this.tasks = append(this.tasks, t)
+}
+
+func (this *MaestroDoc) process_deploys() error {
+	for _, service_key := range this.Deploys {
+		if this.deploys == nil {
+			this.deploys = []*Service{}
+		}
+		if service, has := this.services[service_key]; has {
+			this.deploys = append(this.deploys, service)
+		} else {
+			return errors.New(fmt.Sprintf("no-service-found:%s", service_key))
+		}
+	}
 	return nil
 }
 
@@ -385,6 +451,52 @@ func (this *MaestroDoc) process_config() error {
 	if err := this.process_services(); err != nil {
 		return err
 	}
+	// What to deploy
+	if err := this.process_deploys(); err != nil {
+		return err
+	}
+
+	// We may have incomplete spec.  In other words, it's possible that a doc
+	// has only image / artifcat information and no instances and containers.
+
+	for _, service := range this.deploys {
+		this.add_task(service.get_task())
+	}
+
+	if len(this.tasks) == 0 {
+		for _, job := range this.Jobs {
+			this.add_task(job.get_task())
+		}
+	}
+
+	if len(this.tasks) == 0 {
+		for _, container := range this.Containers {
+			this.add_task(container.get_task())
+		}
+	}
+
+	if len(this.tasks) == 0 {
+		for _, instance := range this.Instances {
+			this.add_task(instance.get_task())
+		}
+	}
+
+	if len(this.tasks) == 0 {
+		for _, image := range this.Images {
+			this.add_task(image.get_task())
+		}
+	}
+
+	// These have no dependencies
+	if len(this.tasks) == 0 {
+		for _, disk := range this.Disks {
+			this.add_task(disk.get_task())
+		}
+		for _, artifact := range this.Artifacts {
+			this.add_task(artifact.get_task())
+		}
+	}
+
 	return nil
 }
 
@@ -407,6 +519,7 @@ func (this *MaestroDoc) Validate(c Context) error {
 
 	var err error
 	for k, disk := range this.Disks {
+		c.bind_vars(disk)
 		log.Print("Validating disk " + k)
 		err = disk.Validate(c)
 		if err != nil {
@@ -415,6 +528,7 @@ func (this *MaestroDoc) Validate(c Context) error {
 		}
 	}
 	for k, instance := range this.Instances {
+		c.bind_vars(instance)
 		log.Print("Validating instance " + k)
 		err = instance.Validate(c)
 		if err != nil {
@@ -422,7 +536,18 @@ func (this *MaestroDoc) Validate(c Context) error {
 			return err
 		}
 	}
+	for k, artifact := range this.Artifacts {
+		c.bind_vars(artifact)
+		log.Print("Validating artifact " + k)
+		err := artifact.Validate(c)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+	}
+
 	for k, image := range this.Images {
+		c.bind_vars(image)
 		log.Print("Validating image " + k)
 		err = image.Validate(c)
 		if err != nil {
@@ -432,6 +557,7 @@ func (this *MaestroDoc) Validate(c Context) error {
 	}
 	log.Println("Image validation done.")
 	for k, service := range this.services {
+		c.bind_vars(service)
 		log.Print("Validating service " + k)
 		err = service.Validate(c)
 		if err != nil {

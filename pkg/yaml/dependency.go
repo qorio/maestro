@@ -3,11 +3,9 @@ package yaml
 import (
 	"errors"
 	"fmt"
-	"log"
 )
 
 type task struct {
-	order            int
 	description      string
 	depends          []*task
 	upstream         []*task
@@ -52,23 +50,34 @@ func (t *task) Reset() {
 }
 
 func (t *task) Run(c Context) {
-	var mode = "LIVE "
-	if c.test_mode() {
-		mode = "TEST "
-	}
-
-	logf := "%6s %7s %4d %s\n"
+	logf := "%7s %s\n"
+	error_logf := "%7s %s error=%s"
 
 	t.executions += 1
 	if t.executions > 1 {
-		log.Printf(logf, mode, "SKIP", t.order, t.description)
+		c.log(logf, "SKIP", t.description)
 		return // already run
+	}
+
+	var err error
+
+	c.log(logf, "PREPARE", t.description)
+	err = t.self.Prepare(c)
+	if err != nil {
+		c.error(error_logf, "PREPARE", t.description, err.Error())
+		for _, up := range t.upstream {
+			up.chan_errors <- err // propagate upward
+		}
+		return
 	}
 
 	dispatched := 0
 	for _, depend := range t.depends {
 		go func(d *task) {
-			d.Run(c) // this will send response via channels
+			// make a copy of context
+			cc := make(Context)
+			cc.copy_from(c)
+			d.Run(cc) // this will send response via channels
 		}(depend)
 		dispatched += 1
 	}
@@ -96,43 +105,31 @@ func (t *task) Run(c Context) {
 		for _, up := range t.upstream {
 			up.chan_errors <- sub_err // propagate upward
 		}
-		log.Printf(logf, mode, "ABORT", t.order, t.description)
+		c.error(error_logf, "ABORT", t.description, sub_err.Error())
 		return
 	}
 
 	if kill {
 		for _, up := range t.upstream {
-			up.chan_errors <- errors.New(fmt.Sprintf("task-killed: %d %s", t.order, t.description))
+			up.chan_errors <- errors.New(fmt.Sprintf("task-killed: %d %s", t.description))
 		}
 		return
 	}
 
-	var err error
-
-	log.Printf(logf, mode, "PREPARE", t.order, t.description)
-	err = t.self.Prepare(c)
-	if err != nil {
-		log.Printf(logf, "ERROR", "PREPARE", t.order, t.description)
-		for _, up := range t.upstream {
-			up.chan_errors <- err // propagate upward
-		}
-		return
-	}
-
-	log.Printf(logf, mode, "EXECUTE", t.order, t.description)
+	c.log(logf, "EXECUTE", t.description)
 	err = t.self.Execute(c)
 	if err != nil {
-		log.Printf(logf, "ERROR", "EXECUTE", t.order, t.description)
+		c.error(error_logf, "EXECUTE", t.description, err.Error())
 		for _, up := range t.upstream {
 			up.chan_errors <- err // propagate upward
 		}
 		return
 	}
 
-	log.Printf(logf, mode, "FINISH", t.order, t.description)
+	c.log(logf, "FINISH", t.description)
 	err = t.self.Finish(c)
 	if err != nil {
-		log.Printf(logf, "ERROR", "FINISH", t.order, t.description)
+		c.error(error_logf, "FINISH", t.description, err.Error())
 		for _, up := range t.upstream {
 			up.chan_errors <- err // propagate upward
 		}

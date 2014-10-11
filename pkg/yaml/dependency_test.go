@@ -58,19 +58,15 @@ func (suite *YamlDependenciesTests) TestRun(c *C) {
 	queue = []int{}
 
 	task0 := alloc_task(t1(0))
-	task0.order = 0
 	task0.description = "task0"
 
 	task10 := alloc_task(t1(10))
-	task10.order = 10
 	task10.description = "task10"
 
 	task11 := alloc_task(t1(11))
-	task11.order = 11
 	task11.description = "task11"
 
 	task20 := alloc_task(t1(20))
-	task20.order = 20
 	task20.description = "task20"
 
 	task11.DependsOn(task20)
@@ -97,19 +93,15 @@ func (suite *YamlDependenciesTests) TestRunParallel(c *C) {
 	queue = []int{}
 
 	task0 := alloc_task(t1(0))
-	task0.order = 0
 	task0.description = "task0"
 
 	task10 := alloc_task(t1(10))
-	task10.order = 10
 	task10.description = "task10"
 
 	task11 := alloc_task(t1(11))
-	task11.order = 11
 	task11.description = "task11"
 
 	task20 := alloc_task(t1(20))
-	task20.order = 20
 	task20.description = "task20"
 
 	// A diamond
@@ -139,19 +131,15 @@ func (suite *YamlDependenciesTests) TestRunParallelWithError(c *C) {
 	queue = []int{}
 
 	task0 := alloc_task(t1(0))
-	task0.order = 0
 	task0.description = "task0"
 
 	task10 := alloc_task(t1(10))
-	task10.order = 10
 	task10.description = "task10"
 
 	task11 := alloc_task(t1(11))
-	task11.order = 11
 	task11.description = "task11"
 
 	task20 := alloc_task(t2(20))
-	task20.order = 20
 	task20.description = "task20"
 
 	// A diamond
@@ -180,19 +168,15 @@ func (suite *YamlDependenciesTests) TestRunParallelWithErrorInParllelTask(c *C) 
 	queue = []int{}
 
 	task0 := alloc_task(t1(0))
-	task0.order = 0
 	task0.description = "task0"
 
 	task10 := alloc_task(t2(10)) // will fail here
-	task10.order = 10
 	task10.description = "task10"
 
 	task11 := alloc_task(t1(11))
-	task11.order = 11
 	task11.description = "task11"
 
 	task20 := alloc_task(t1(20))
-	task20.order = 20
 	task20.description = "task20"
 
 	// A diamond

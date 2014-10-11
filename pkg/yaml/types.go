@@ -22,10 +22,12 @@ type Artifact struct {
 	Source         string `yaml:"source"`
 	SourceApiToken string `yaml:"source-api-token"`
 	BuildNumber    string `yaml:"build"`
-	Artifact       string `yaml:"artifact"`
+	File           string `yaml:"file"`
 	Platform       string `yaml:"platform"`
 
 	name ArtifactKey
+
+	task *task
 }
 
 type ImageKey string
@@ -36,6 +38,8 @@ type Image struct {
 
 	name      ImageKey
 	artifacts []*Artifact
+
+	task *task
 }
 
 type ContainerKey string
@@ -47,6 +51,8 @@ type Container struct {
 	name           ContainerKey
 	targetInstance *Instance
 	targetImage    *Image
+
+	task *task
 }
 
 type SizeQuantityUnit string
@@ -59,12 +65,9 @@ const (
 )
 
 type Resource struct {
-	CPU  int              `yaml:"cpu"`
-	RAM  SizeQuantityUnit `yaml:"memory"`
-	Disk SizeQuantityUnit `yaml:"disk"`
-
-	ram_mb  int
-	disk_mb int
+	CPU    int              `yaml:"cpu"`
+	Memory SizeQuantityUnit `yaml:"memory"`
+	Disk   SizeQuantityUnit `yaml:"disk"`
 }
 
 type DiskKey string
@@ -74,6 +77,8 @@ type Disk struct {
 	Size  SizeQuantityUnit `yaml:"size"`
 
 	name DiskKey
+
+	task *task
 }
 
 type CommaSeparatedList string
@@ -86,6 +91,9 @@ type InstanceLabel string
 type Volume struct {
 	Disk       DiskKey
 	MountPoint string
+
+	disk *Disk
+	host *Instance
 }
 type VolumeLabel string
 type Instance struct {
@@ -102,6 +110,8 @@ type Instance struct {
 	name   InstanceKey
 	disks  map[VolumeLabel]*Volume
 	labels []InstanceLabel
+
+	task *task
 }
 
 type JobKey string
@@ -121,6 +131,8 @@ type Job struct {
 	instance_labels     []InstanceLabel
 	instances           []*Instance
 	container_instances []*Container
+
+	task *task
 }
 
 type Requirement Resource
@@ -130,6 +142,8 @@ type Service struct {
 	name     ServiceKey
 	jobs     []*Job
 	port_map map[JobKey][]ExposedPort
+
+	task *task
 }
 
 type YmlFilePath string
@@ -148,6 +162,8 @@ type MaestroDoc struct {
 
 	// Parsed and populated
 	services map[ServiceKey]*Service
+	deploys  []*Service
+	tasks    []*task
 }
 
 type runnableMap map[interface{}]Runnable

@@ -1,11 +1,24 @@
 package yaml
 
-import ()
+import (
+	"fmt"
+)
+
+func (this *Instance) export_vars() map[string]interface{} {
+	vm := make(map[string]map[string]interface{})
+	for k, volume := range this.disks {
+		vm[string(k)] = map[string]interface{}{
+			"mount": volume.MountPoint,
+			"disk":  volume.Disk,
+		}
+	}
+	return map[string]interface{}{
+		"volumes": vm,
+		"name":    this.name,
+	}
+}
 
 func (this *Instance) Validate(c Context) error {
-	c.eval(&this.Cloud)
-	c.eval(&this.Project)
-	c.eval(&this.Keypair)
 	// private key
 	privateKey := this.Keypair
 	if err := checkFile(privateKey); err != nil {
@@ -29,6 +42,9 @@ func (this *Instance) Prepare(c Context) error {
 }
 
 func (this *Instance) Execute(c Context) error {
+	c.log("Executing instance %s", this.name)
+
+	// TODO - This launches the machine instance
 	return nil
 }
 
@@ -51,4 +67,17 @@ func (a ByInstanceKey) Swap(i, j int) {
 }
 func (a ByInstanceKey) Less(i, j int) bool {
 	return a[i].name < a[j].name
+}
+
+func (this *Instance) get_task() *task {
+	if this.task == nil {
+		this.task = alloc_task(this)
+		this.task.description = fmt.Sprintf("Instance[%s]", this.name)
+		// TODO - add ip
+		for _, volume := range this.disks {
+			d := volume.disk.get_task()
+			this.task.DependsOn(d)
+		}
+	}
+	return this.task
 }

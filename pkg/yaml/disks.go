@@ -1,9 +1,11 @@
 package yaml
 
-import ()
+import (
+	"fmt"
+)
 
 func (this *Disk) Validate(c Context) error {
-	return nil
+	return this.Size.Validate()
 }
 
 func (this *Disk) InDesiredState(c Context) (bool, error) {
@@ -20,4 +22,12 @@ func (this *Disk) Execute(c Context) error {
 
 func (this *Disk) Finish(c Context) error {
 	return nil
+}
+
+func (this *Disk) get_task() *task {
+	if this.task == nil {
+		this.task = alloc_task(this)
+		this.task.description = fmt.Sprintf("Disk[%s]", this.name)
+	}
+	return this.task
 }

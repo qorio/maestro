@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/qorio/maestro/pkg/docker"
-	"log"
 	"os"
 	"path/filepath"
 )
@@ -12,6 +11,26 @@ import (
 const DOCKER_EMAIL = "DOCKER_EMAIL"
 const DOCKER_AUTH = "DOCKER_AUTH"
 const DOCKER_ACCOUNT = "DOCKER_ACCOUNT"
+
+func (this *Image) export_vars() map[string]interface{} {
+	artifacts := make(map[string]map[string]interface{})
+	for _, a := range this.artifacts {
+		artifacts[string(a.name)] = map[string]interface{}{
+			"project":  a.Project,
+			"source":   a.Source,
+			"build":    a.BuildNumber,
+			"file":     a.File,
+			"platform": a.Platform,
+		}
+	}
+
+	return map[string]interface{}{
+		"id":         this.RepoId,
+		"dockerfile": this.Dockerfile,
+		"name":       this.name,
+		"artifacts":  artifacts,
+	}
+}
 
 func (this *Image) Validate(c Context) error {
 	// Check required vars
@@ -22,18 +41,8 @@ func (this *Image) Validate(c Context) error {
 		return errors.New("Missing DOCKER_AUTH var")
 	}
 
-	c.eval(&this.Dockerfile)
-	c.eval(&this.RepoId)
-
 	if len(this.artifacts) == 0 && this.RepoId == "" {
 		return errors.New("No artifacts reference to build this image or no Docker hub repo id specified.")
-	}
-
-	for _, artifact := range this.artifacts {
-		log.Println("Validating artifacts", artifact.name)
-		if err := artifact.Validate(c); err != nil {
-			return err
-		}
 	}
 
 	// check to see if docker file exists.
@@ -78,22 +87,10 @@ func (this *Image) Prepare(c Context) error {
 	// for each artifact, pull the binary and place in the dockerfile's directory
 	dir := filepath.Dir(this.Dockerfile)
 	c["binary_dir"] = dir
-	defer delete(c, "binary_dir")
-
-	for _, artifact := range this.artifacts {
-		err := artifact.Prepare(c)
-		if err != nil {
-			return err
-		}
-	}
 
 	// set up dockercfg file
 
-	if c.test_mode() {
-		log.Print("TEST")
-	}
-
-	log.Println("Setting up .dockercfg")
+	c.log("Setting up .dockercfg")
 
 	if c.test_mode() {
 		return nil
@@ -114,7 +111,7 @@ func (this *Image) Prepare(c Context) error {
 		if err != nil {
 			return err
 		}
-		log.Println("Created dockercfg.")
+		c.log("Created dockercfg.")
 	default:
 		return err
 	}
@@ -130,6 +127,8 @@ func (this *Image) Execute(c Context) error {
 	}
 	docker_config.TestMode = c.test_mode()
 
+	c.log("Building docker image from Dockerfile %s", this.Dockerfile)
+
 	image, err := docker_config.NewTaggedImage(this.RepoId, this.Dockerfile)
 	if err != nil {
 		return err
@@ -140,7 +139,7 @@ func (this *Image) Execute(c Context) error {
 		return err
 	}
 
-	log.Println("Finished building", this.name, "Now pushing.")
+	c.log("Finished building %s. Now pushing", this.name)
 
 	err = image.Push()
 	if err != nil {
@@ -152,4 +151,16 @@ func (this *Image) Execute(c Context) error {
 
 func (this *Image) Finish(c Context) error {
 	return nil
+}
+
+func (this *Image) get_task() *task {
+	if this.task == nil {
+		this.task = alloc_task(this)
+		this.task.description = fmt.Sprintf("Image[%s]", this.name)
+		// Assume artifacts are already built and made available so we can parallelize fetch
+		for _, artifact := range this.artifacts {
+			this.task.DependsOn(artifact.get_task())
+		}
+	}
+	return this.task
 }

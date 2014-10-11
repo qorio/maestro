@@ -5,40 +5,6 @@ import (
 	"fmt"
 )
 
-func (this *Instance) export_vars() map[string]interface{} {
-	vm := make(map[string]map[string]interface{})
-	for k, volume := range this.disks {
-		vm[string(k)] = map[string]interface{}{
-			"mount": volume.MountPoint,
-			"disk":  volume.Disk,
-		}
-	}
-	return map[string]interface{}{
-		"volumes": vm,
-		"name":    this.name,
-	}
-}
-
-func (this *Image) export_vars() map[string]interface{} {
-	artifacts := make(map[string]map[string]interface{})
-	for _, a := range this.artifacts {
-		artifacts[string(a.name)] = map[string]interface{}{
-			"project":  a.Project,
-			"source":   a.Source,
-			"build":    a.BuildNumber,
-			"artifact": a.Artifact,
-			"platform": a.Platform,
-		}
-	}
-
-	return map[string]interface{}{
-		"id":         this.RepoId,
-		"dockerfile": this.Dockerfile,
-		"name":       this.name,
-		"artifacts":  artifacts,
-	}
-}
-
 func (this *Service) Name() ServiceKey {
 	return this.name
 }
@@ -105,4 +71,20 @@ func (this *Service) Execute(c Context) error {
 
 func (this *Service) Finish(c Context) error {
 	return nil
+}
+
+func (this *Service) get_task() *task {
+	if this.task == nil {
+		// Service depends on the jobs starting up in sequence
+		this.task = alloc_task(this)
+		this.task.description = fmt.Sprintf("Service[%s]", string(this.name))
+
+		t := this.task
+		for i := len(this.jobs) - 1; i >= 0; i-- {
+			j := this.jobs[i].get_task()
+			t.DependsOn(j)
+			t = j
+		}
+	}
+	return this.task
 }

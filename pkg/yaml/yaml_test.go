@@ -53,6 +53,39 @@ instance:
            dev_config: /config
 `
 
+const images_yml = `
+var:
+  CIRCLECI_TOKEN: ea735505e0fae755201ea1511c4fa9c55f825846
+  DOCKER_ACCOUNT: qoriolabs
+  DOCKER_EMAIL: docker@qoriolabs.com
+  DOCKER_AUTH: cW9yaW9sYWJzOlFvcmlvMWxhYnMh
+  BUILD_NUMBER: 12
+  DOCKER_DIR: $HOME/go/src/github.com/qorio/maestro/docker
+
+artifact:
+  passport:
+    project: qorio/passport
+    source: circleci
+    source-api-token: '{{.CIRCLECI_TOKEN}}'
+    build: "{{.BUILD_NUMBER}}"
+    file: passport
+
+  auth_key:
+    project: qorio/passport
+    source: circleci
+    source-api-token: '{{.CIRCLECI_TOKEN}}'
+    build: "{{.BUILD_NUMBER}}"
+    file: authKey.pub
+
+image:
+  passport:
+     dockerfile: "{{.DOCKER_DIR}}/passport/Dockerfile"
+     image: "{{.DOCKER_ACCOUNT}}/passport:{{.BUILD_NUMBER}}"
+     artifacts:
+       - passport
+       - auth_key
+`
+
 const yml = `
 # Imports here
 # import:
@@ -61,31 +94,31 @@ const yml = `
 
 var:
   LIVE_MODE: 0
-  CIRCLECI_TOKEN: ea735505e0fae755201ea1511c4fa9c55f825846
-  DOCKER_ACCOUNT: qoriolabs
-  DOCKER_EMAIL: docker@qoriolabs.com
-  DOCKER_AUTH: cW9yaW9sYWJzOlFvcmlvMWxhYnMh
-  BUILD_NUMBER: 12
-  DOCKER_DIR: $HOME/go/src/github.com/qorio/maestro/docker
+  #CIRCLECI_TOKEN: ea735505e0fae755201ea1511c4fa9c55f825846
+  #DOCKER_ACCOUNT: qoriolabs
+  #DOCKER_EMAIL: docker@qoriolabs.com
+  #DOCKER_AUTH: cW9yaW9sYWJzOlFvcmlvMWxhYnMh
+  #BUILD_NUMBER: 12
+  #DOCKER_DIR: $HOME/go/src/github.com/qorio/maestro/docker
   KEY_DIR: $HOME/go/src/github.com/qorio/maestro/environments/dev/.ssh
 
 deploy:
   - passport
 
 artifact:
-  auth_key:
-    project: qorio/passport
-    source: circleci
-    source-api-token: '{{.CIRCLECI_TOKEN}}'
-    build: "{{.BUILD_NUMBER}}"
-    artifact: testAuthKey.pub
-
   passport:
     project: qorio/passport
     source: circleci
     source-api-token: '{{.CIRCLECI_TOKEN}}'
     build: "{{.BUILD_NUMBER}}"
-    artifact: passport
+    file: passport
+
+  auth_key:
+    project: qorio/passport
+    source: circleci
+    source-api-token: '{{.CIRCLECI_TOKEN}}'
+    build: "{{.BUILD_NUMBER}}"
+    file: authKey.pub
 
 image:
   passport:
@@ -93,6 +126,7 @@ image:
      image: "{{.DOCKER_ACCOUNT}}/passport:{{.BUILD_NUMBER}}"
      artifacts:
        - passport
+       - auth_key
 
 container:
   mongodb:
@@ -158,6 +192,7 @@ type YamlTests struct {
 	config_file    string
 	disks_file     string
 	instances_file string
+	images_file    string
 }
 
 var _ = Suite(&YamlTests{})
@@ -177,6 +212,7 @@ func (suite *YamlTests) SetUpSuite(c *C) {
 		panic(err)
 	}
 	c.Log("Generated disks file: ", len)
+
 	instances_file, err := os.Create(filepath.Join(suite.dir, "instances.yml"))
 	if err != nil {
 		panic(err)
@@ -189,6 +225,19 @@ func (suite *YamlTests) SetUpSuite(c *C) {
 		panic(err)
 	}
 	c.Log("Generated instances file: ", len)
+
+	images_file, err := os.Create(filepath.Join(suite.dir, "images.yml"))
+	if err != nil {
+		panic(err)
+	}
+	defer images_file.Close()
+	suite.images_file = images_file.Name()
+
+	len, err = fmt.Fprintln(images_file, images_yml)
+	if err != nil {
+		panic(err)
+	}
+	c.Log("Generated images file: ", len)
 
 	// Now write the yml file and
 	config_file, err := os.Create(filepath.Join(suite.dir, "config.yml"))
@@ -203,6 +252,8 @@ import:
    - `+suite.disks_file)
 	fmt.Fprintln(config_file, `
    - `+suite.instances_file)
+	fmt.Fprintln(config_file, `
+   - `+suite.images_file)
 
 	fmt.Fprintln(config_file, yml)
 	c.Log("Test Setup:", suite)
@@ -302,7 +353,7 @@ artifact:
     project: qorio/omni
     source: circleci
     build: "{{.BUILD_NUMBER}}"
-    artifact: passport
+    file: passport
     platform: linux_amd64
 
 image:
@@ -314,6 +365,9 @@ image:
 `))
 	c.Assert(err, Equals, nil)
 
+	err = config.process_artifacts()
+	c.Assert(err, Equals, nil)
+
 	err = config.process_images()
 	c.Assert(err, Equals, nil)
 
@@ -322,7 +376,7 @@ image:
 	c.Assert(config.Images["passport"].artifacts, Not(Equals), nil)
 	c.Assert(config.Images["passport"].artifacts[0].Platform, Equals, "linux_amd64")
 	c.Assert(config.Images["passport"].artifacts[0].Source, Equals, "circleci")
-	c.Assert(config.Images["passport"].artifacts[0].Artifact, Equals, "passport")
+	c.Assert(config.Images["passport"].artifacts[0].File, Equals, "passport")
 	c.Assert(config.Images["passport"].artifacts[0].BuildNumber, Equals, "{{.BUILD_NUMBER}}")
 	c.Assert(string(config.Images["passport"].artifacts[0].name), Equals, "passport")
 	c.Assert(string(config.Images["passport"].RepoId), Equals, "qorio/passport:{{.PASSPORT_IMAGE_TAG}}")
@@ -341,7 +395,7 @@ artifact:
     project: qorio/omni
     source: circleci
     build: {{.BUILD_NUMBER}}
-    artifact: passport
+    file: passport
     platform: linux_amd64
 
 image:
@@ -499,4 +553,23 @@ func (suite *YamlTests) TestExecuteImages(c *C) {
 
 	err = config.runnableImages().Execute(context)
 	c.Assert(err, Equals, nil)
+}
+
+func (suite *YamlTests) TestGetTasks(c *C) {
+
+	config := &MaestroDoc{}
+	c.Log("Reading from", suite.config_file)
+	err := config.LoadFromFile(suite.config_file)
+	c.Assert(err, Equals, nil)
+
+	err = config.process_config()
+	c.Assert(err, Equals, nil)
+
+	context := config.new_context()
+	err = config.Validate(context)
+	c.Assert(err, Equals, nil)
+
+	// We expect only one task that is the deploy service
+	c.Assert(len(config.tasks), Equals, 1)
+	config.tasks[0].Run(context)
 }
