@@ -49,14 +49,14 @@ func (t *task) Reset() {
 	t.task_errors = []error{}
 }
 
-func (t *task) Run(c Context) {
+func (t *task) Run(c Context) error {
 	logf := "%7s %s\n"
 	error_logf := "%7s %s error=%s"
 
 	t.executions += 1
 	if t.executions > 1 {
 		c.log(logf, "SKIP", t.description)
-		return // already run
+		return nil // already run
 	}
 
 	var err error
@@ -68,7 +68,7 @@ func (t *task) Run(c Context) {
 		for _, up := range t.upstream {
 			up.chan_errors <- err // propagate upward
 		}
-		return
+		return err
 	}
 
 	dispatched := 0
@@ -106,14 +106,14 @@ func (t *task) Run(c Context) {
 			up.chan_errors <- sub_err // propagate upward
 		}
 		c.error(error_logf, "ABORT", t.description, sub_err.Error())
-		return
+		return sub_err
 	}
 
 	if kill {
 		for _, up := range t.upstream {
 			up.chan_errors <- errors.New(fmt.Sprintf("task-killed: %d %s", t.description))
 		}
-		return
+		return errors.New("killed")
 	}
 
 	c.log(logf, "EXECUTE", t.description)
@@ -123,7 +123,7 @@ func (t *task) Run(c Context) {
 		for _, up := range t.upstream {
 			up.chan_errors <- err // propagate upward
 		}
-		return
+		return err
 	}
 
 	c.log(logf, "FINISH", t.description)
@@ -133,12 +133,12 @@ func (t *task) Run(c Context) {
 		for _, up := range t.upstream {
 			up.chan_errors <- err // propagate upward
 		}
-		return
+		return err
 	}
 
 	// completion
 	for _, up := range t.upstream {
 		up.chan_completions <- 1 // propagate upward
 	}
-	return
+	return nil
 }

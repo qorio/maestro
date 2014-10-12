@@ -6,11 +6,11 @@ package yaml
 type Context map[string]interface{}
 
 type Verifiable interface {
-	Validate(c Context) (bool, error)
 	InDesiredState(c Context) (bool, error)
 }
 
 type Runnable interface {
+	Validate(c Context) error
 	Prepare(c Context) error
 	Execute(c Context) error
 	Finish(c Context) error

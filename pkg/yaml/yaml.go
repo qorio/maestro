@@ -509,14 +509,8 @@ func (this *MaestroDoc) new_context() Context {
 	return context
 }
 
-func (this *MaestroDoc) InDesiredState(c Context) (bool, error) {
-	return true, nil
-}
-
 func (this *MaestroDoc) Validate(c Context) error {
 	// Validate the doc
-	// TODO The resources and artifacts are independent so we can run in parallel
-
 	var err error
 	for k, disk := range this.Disks {
 		c.bind_vars(disk)
@@ -556,6 +550,29 @@ func (this *MaestroDoc) Validate(c Context) error {
 		}
 	}
 	log.Println("Image validation done.")
+
+	for k, container := range this.Containers {
+		c.bind_vars(container)
+		log.Print("Validating container " + k)
+		err = container.Validate(c)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+	}
+	log.Println("Container validation done.")
+
+	for k, job := range this.Jobs {
+		c.bind_vars(job)
+		log.Print("Validating job " + k)
+		err = job.Validate(c)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+	}
+	log.Println("Job validation done.")
+
 	for k, service := range this.services {
 		c.bind_vars(service)
 		log.Print("Validating service " + k)
@@ -565,62 +582,41 @@ func (this *MaestroDoc) Validate(c Context) error {
 			return err
 		}
 	}
+	log.Println("Service validation done.")
 	return err
 }
 
-func (this *MaestroDoc) all_runnables() []func() Runnable {
-	return []func() Runnable{
-		this.runnableImages,
-	}
-}
+func (this *MaestroDoc) Apply() error {
 
-func (this *MaestroDoc) runnableImages() Runnable {
-	m := make(runnableMap)
-	for k, v := range this.Images {
-		m[k] = v
+	err := this.process_config()
+	if err != nil {
+		log.Println("ERROR, Processing doc: " + err.Error())
+		return err
 	}
-	return runnableMap(m)
-}
 
-func (this *MaestroDoc) runnableServices() Runnable {
-	m := make(runnableMap)
-	for k, v := range this.services {
-		m[k] = v
+	context := this.new_context()
+	err = this.Validate(context)
+	if err != nil {
+		log.Println("ERROR, Validating doc: " + err.Error())
+		return err
 	}
-	return runnableMap(m)
-}
 
-func (this *MaestroDoc) runnableDeployments() Runnable {
-	m := make(runnableMap)
-	for k, v := range this.services {
-		m[k] = v
+	if len(this.tasks) == 0 {
+		log.Println("Nothing to do.")
+		return nil
 	}
-	return runnableMap(m)
-}
 
-func (this *MaestroDoc) Prepare(c Context) error {
-	for _, prepare := range this.all_runnables() {
-		if err := prepare().Prepare(c); err != nil {
-			return err
+	for i, task := range this.tasks {
+		log.Printf("%3d -- APPLY TASK %s\n", i, task.description)
+
+		err = task.Run(context)
+
+		if err != nil {
+			log.Printf("%3d -- ERROR: %s\n", i, err.Error())
+			break
 		}
 	}
-	return nil
-}
 
-func (this *MaestroDoc) Execute(c Context) error {
-	for _, execute := range this.all_runnables() {
-		if err := execute().Execute(c); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (this *MaestroDoc) Finish(c Context) error {
-	for _, finish := range this.all_runnables() {
-		if err := finish().Finish(c); err != nil {
-			return err
-		}
-	}
-	return nil
+	log.Println("Completed")
+	return err
 }

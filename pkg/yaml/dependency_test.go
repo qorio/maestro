@@ -17,6 +17,9 @@ var queue = []int{}
 
 type t1 int
 
+func (t t1) Validate(c Context) error {
+	return nil
+}
 func (t t1) Prepare(c Context) error {
 	return nil
 }
@@ -30,6 +33,9 @@ func (t t1) Finish(c Context) error {
 
 type t2 int
 
+func (t t2) Validate(c Context) error {
+	return nil
+}
 func (t t2) Prepare(c Context) error {
 	return nil
 }
@@ -43,6 +49,9 @@ func (t t2) Finish(c Context) error {
 
 type ct chan bool
 
+func (t ct) Validate(c Context) error {
+	return nil
+}
 func (t ct) Prepare(c Context) error {
 	return nil
 }

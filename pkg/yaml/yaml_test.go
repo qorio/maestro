@@ -94,39 +94,10 @@ const yml = `
 
 var:
   LIVE_MODE: 0
-  #CIRCLECI_TOKEN: ea735505e0fae755201ea1511c4fa9c55f825846
-  #DOCKER_ACCOUNT: qoriolabs
-  #DOCKER_EMAIL: docker@qoriolabs.com
-  #DOCKER_AUTH: cW9yaW9sYWJzOlFvcmlvMWxhYnMh
-  #BUILD_NUMBER: 12
-  #DOCKER_DIR: $HOME/go/src/github.com/qorio/maestro/docker
   KEY_DIR: $HOME/go/src/github.com/qorio/maestro/environments/dev/.ssh
 
 deploy:
   - passport
-
-artifact:
-  passport:
-    project: qorio/passport
-    source: circleci
-    source-api-token: '{{.CIRCLECI_TOKEN}}'
-    build: "{{.BUILD_NUMBER}}"
-    file: passport
-
-  auth_key:
-    project: qorio/passport
-    source: circleci
-    source-api-token: '{{.CIRCLECI_TOKEN}}'
-    build: "{{.BUILD_NUMBER}}"
-    file: authKey.pub
-
-image:
-  passport:
-     dockerfile: "{{.DOCKER_DIR}}/passport/Dockerfile"
-     image: "{{.DOCKER_ACCOUNT}}/passport:{{.BUILD_NUMBER}}"
-     artifacts:
-       - passport
-       - auth_key
 
 container:
   mongodb:
@@ -306,7 +277,7 @@ func (suite *YamlTests) TestSchema(c *C) {
 	c.Log("FINAL", doc.String())
 
 	c.Assert(len(doc.Deploys), Equals, 1)
-	c.Assert(len(doc.Imports), Equals, 2)
+	c.Assert(len(doc.Imports), Equals, 3)
 
 	c.Assert(len(doc.Vars), Equals, 8)
 	c.Assert(doc.Vars["DOCKER_AUTH"], Equals, "cW9yaW9sYWJzOlFvcmlvMWxhYnMh")
@@ -512,49 +483,6 @@ func (suite *YamlTests) TestValidate(c *C) {
 
 }
 
-func (suite *YamlTests) TestPrepareImages(c *C) {
-
-	config := &MaestroDoc{}
-	c.Log("Reading from", suite.config_file)
-	err := config.LoadFromFile(suite.config_file)
-	c.Assert(err, Equals, nil)
-
-	err = config.process_config()
-	c.Assert(err, Equals, nil)
-
-	context := config.new_context()
-	err = config.Validate(context)
-	c.Assert(err, Equals, nil)
-
-	err = config.runnableImages().Prepare(context)
-	c.Assert(err, Equals, nil)
-
-	// Check downloaded binary exists
-	_, err = os.Stat(filepath.Dir(config.Images["passport"].Dockerfile) + "/passport")
-	c.Assert(err, Equals, nil)
-}
-
-func (suite *YamlTests) TestExecuteImages(c *C) {
-
-	config := &MaestroDoc{}
-	c.Log("Reading from", suite.config_file)
-	err := config.LoadFromFile(suite.config_file)
-	c.Assert(err, Equals, nil)
-
-	err = config.process_config()
-	c.Assert(err, Equals, nil)
-
-	context := config.new_context()
-	err = config.Validate(context)
-	c.Assert(err, Equals, nil)
-
-	err = config.runnableImages().Prepare(context)
-	c.Assert(err, Equals, nil)
-
-	err = config.runnableImages().Execute(context)
-	c.Assert(err, Equals, nil)
-}
-
 func (suite *YamlTests) TestGetTasks(c *C) {
 
 	config := &MaestroDoc{}
@@ -572,4 +500,34 @@ func (suite *YamlTests) TestGetTasks(c *C) {
 	// We expect only one task that is the deploy service
 	c.Assert(len(config.tasks), Equals, 1)
 	config.tasks[0].Run(context)
+}
+
+func (suite *YamlTests) TestBuildImages(c *C) {
+
+	config := &MaestroDoc{}
+	c.Log("Reading from", suite.images_file)
+	err := config.LoadFromFile(suite.images_file)
+	c.Assert(err, Equals, nil)
+
+	err = config.process_config()
+	c.Assert(err, Equals, nil)
+
+	context := config.new_context()
+	err = config.Validate(context)
+	c.Assert(err, Equals, nil)
+
+	// We expect only one task that is the deploy service
+	c.Assert(len(config.tasks), Equals, 1)
+	config.tasks[0].Run(context)
+}
+
+func (suite *YamlTests) TestApply(c *C) {
+
+	config := &MaestroDoc{}
+	c.Log("Reading from", suite.images_file)
+	err := config.LoadFromFile(suite.images_file)
+	c.Assert(err, Equals, nil)
+
+	err = config.Apply()
+	c.Assert(err, Equals, nil)
 }
