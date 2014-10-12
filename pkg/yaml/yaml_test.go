@@ -531,3 +531,24 @@ func (suite *YamlTests) TestApply(c *C) {
 	err = config.Apply()
 	c.Assert(err, Equals, nil)
 }
+
+func (suite *YamlTests) TestApplyPartialConfig(c *C) {
+	config := &MaestroDoc{}
+
+	// include the instances and disks yml only
+	// keep the images separate.
+	config_yml := `
+import:
+     - ` + suite.instances_file + `
+     - ` + suite.disks_file + `
+
+` + yml
+
+	err := config.LoadFromBytes([]byte(config_yml))
+	c.Assert(err, Equals, nil)
+
+	c.Assert(err, Equals, nil)
+
+	err = config.Apply()
+	c.Assert(err, Equals, nil)
+}
