@@ -9,7 +9,7 @@ _pwd_prompt: mk_dirs
 	@echo "Ask me"
 
 # Make directories based the file paths
-mk_dirs: _pwd_prompt
+mk_dirs:
 	for i in ${SECRET_FILES} ; do \
 		echo $$i ; \
 		mkdir -p encrypt/$$(dirname $$i) ; \
