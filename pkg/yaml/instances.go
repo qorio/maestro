@@ -1,8 +1,31 @@
 package yaml
 
 import (
+	"errors"
 	"fmt"
+	"github.com/qorio/maestro/pkg/ssh"
 )
+
+var ip_map map[*Instance]Ip
+
+func init() {
+	ip_map = make(map[*Instance]Ip, 0)
+}
+
+func ssh_client(host Ip, keypath string) (*ssh.Client, error) {
+	// Get the login user from the public key
+	pk, err := ssh.ParsePublicKeyFile(keypath + ".pub")
+	if err != nil {
+		return nil, err
+	}
+
+	auth, err := ssh.KeyFileAuthMethod(keypath)
+	if err != nil {
+		return nil, err
+	}
+
+	return ssh.NewClient(pk.User, string(host), auth)
+}
 
 func (this *Instance) export_vars() map[string]interface{} {
 	vm := make(map[string]map[string]interface{})
@@ -38,6 +61,21 @@ func (this *Instance) InDesiredState(c Context) (bool, error) {
 }
 
 func (this *Instance) Prepare(c Context) error {
+	// Do a quick connection
+	c.log("   Instance[%12s] -- checking ssh connection to %s", this.name, this.ExternalIp)
+	_, err := ssh_client(this.ExternalIp, this.Keypair)
+	if err != nil {
+		c.log("   Instance[%12s] -- checking ssh connection to %s", this.name, this.InternalIp)
+		_, err2 := ssh_client(this.InternalIp, this.Keypair)
+
+		if err2 != nil {
+			return errors.New("cannot-connect-to-ip")
+		} else {
+			ip_map[this] = this.InternalIp
+		}
+	} else {
+		ip_map[this] = this.ExternalIp
+	}
 	return nil
 }
 

@@ -15,6 +15,7 @@ type task struct {
 	task_errors      []error
 	chan_kill        chan bool
 	executions       int
+	validations      int
 }
 
 func alloc_task(r Runnable) *task {
@@ -55,7 +56,7 @@ func (t *task) Run(c Context) error {
 
 	t.executions += 1
 	if t.executions > 1 {
-		c.log(logf, "SKIP", t.description)
+		//c.log(logf, "SKIP", t.description)
 		return nil // already run
 	}
 
@@ -136,6 +137,78 @@ func (t *task) Run(c Context) error {
 		return err
 	}
 
+	// completion
+	for _, up := range t.upstream {
+		up.chan_completions <- 1 // propagate upward
+	}
+	return nil
+}
+
+func (t *task) Validate(c Context) error {
+	logf := "%7s %s\n"
+	error_logf := "%7s %s error=%s"
+
+	t.validations += 1
+	if t.validations > 1 {
+		//c.log(logf, "SKIP", t.description)
+		return nil // already run
+	}
+
+	var err error
+	dispatched := 0
+	for _, depend := range t.depends {
+		go func(d *task) {
+			// make a copy of context
+			cc := make(Context)
+			cc.copy_from(c)
+			d.Validate(cc) // this will send response via channels
+		}(depend)
+		dispatched += 1
+	}
+
+	// wait here
+	kill := false
+	var sub_err error
+	for dispatched > 0 {
+		select {
+		case err := <-t.chan_errors:
+			dispatched -= 1
+			t.task_errors = append(t.task_errors, err)
+			sub_err = err
+		case <-t.chan_completions:
+			dispatched -= 1
+		case kill = <-t.chan_kill:
+		}
+
+		if sub_err != nil {
+			break
+		}
+	}
+
+	if sub_err != nil {
+		for _, up := range t.upstream {
+			up.chan_errors <- sub_err // propagate upward
+		}
+		c.error(error_logf, "ABORT", t.description, sub_err.Error())
+		return sub_err
+	}
+
+	if kill {
+		for _, up := range t.upstream {
+			up.chan_errors <- errors.New(fmt.Sprintf("task-killed: %d %s", t.description))
+		}
+		return errors.New("killed")
+	}
+
+	c.log(logf, "VALIDATE", t.description)
+	err = t.self.Validate(c)
+	if err != nil {
+		c.error(error_logf, "VALIDATE", t.description, err.Error())
+		for _, up := range t.upstream {
+			up.chan_errors <- err // propagate upward
+		}
+		return err
+	}
 	// completion
 	for _, up := range t.upstream {
 		up.chan_completions <- 1 // propagate upward

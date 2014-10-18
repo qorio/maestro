@@ -30,7 +30,7 @@ instance:
       cloud: gce
       project: qoriolabsdev
       internal-ip: 192.30.252.154
-      external-ip: 164.77.100.101
+      external-ip: 146.148.41.142
       labels: dev, db
       volumes:
         config:
@@ -46,7 +46,7 @@ instance:
       cloud: gce
       project: qoriolabsdev
       internal-ip: 192.30.252.155
-      external-ip: 164.77.100.102
+      external-ip: 146.148.41.142
       labels: dev
       volumes:
         config:
@@ -95,6 +95,7 @@ const yml = `
 var:
   LIVE_MODE: 0
   KEY_DIR: $HOME/go/src/github.com/qorio/maestro/environments/dev/.ssh
+  BUILD_NUMBER: 12
 
 deploy:
   - passport

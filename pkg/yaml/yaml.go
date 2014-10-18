@@ -52,7 +52,7 @@ func (this Context) bind_vars(s interface{}) {
 			tmp := fv.String()
 			this.eval(&tmp)
 			if fv.CanSet() && tmp != fv.String() {
-				fmt.Printf("%s.%s set to %s (was %s)\n", t.Name(), f.Name, tmp, fv.String())
+				//fmt.Printf("%s.%s set to %s (was %s)\n", t.Name(), f.Name, tmp, fv.String())
 				fv.SetString(tmp)
 			}
 		}
@@ -510,79 +510,18 @@ func (this *MaestroDoc) new_context() Context {
 }
 
 func (this *MaestroDoc) Validate(c Context) error {
-	// Validate the doc
+	this.bind_vars(c)
 	var err error
-	for k, disk := range this.Disks {
-		c.bind_vars(disk)
-		log.Print("Validating disk " + k)
-		err = disk.Validate(c)
-		if err != nil {
-			log.Println(err)
-			return err
-		}
-	}
-	for k, instance := range this.Instances {
-		c.bind_vars(instance)
-		log.Print("Validating instance " + k)
-		err = instance.Validate(c)
-		if err != nil {
-			log.Println(err)
-			return err
-		}
-	}
-	for k, artifact := range this.Artifacts {
-		c.bind_vars(artifact)
-		log.Print("Validating artifact " + k)
-		err := artifact.Validate(c)
-		if err != nil {
-			log.Println(err)
-			return err
-		}
-	}
+	for i, task := range this.tasks {
+		log.Printf("%4d -- VALIDATE %s\n", i, task.description)
 
-	for k, image := range this.Images {
-		c.bind_vars(image)
-		log.Print("Validating image " + k)
-		err = image.Validate(c)
-		if err != nil {
-			log.Println(err)
-			return err
-		}
-	}
-	log.Println("Image validation done.")
+		err = task.Validate(c)
 
-	for k, container := range this.Containers {
-		c.bind_vars(container)
-		log.Print("Validating container " + k)
-		err = container.Validate(c)
 		if err != nil {
-			log.Println(err)
-			return err
+			log.Printf("%3d -- ERROR: %s\n", i, err.Error())
+			break
 		}
 	}
-	log.Println("Container validation done.")
-
-	for k, job := range this.Jobs {
-		c.bind_vars(job)
-		log.Print("Validating job " + k)
-		err = job.Validate(c)
-		if err != nil {
-			log.Println(err)
-			return err
-		}
-	}
-	log.Println("Job validation done.")
-
-	for k, service := range this.services {
-		c.bind_vars(service)
-		log.Print("Validating service " + k)
-		err = service.Validate(c)
-		if err != nil {
-			log.Println(err)
-			return err
-		}
-	}
-	log.Println("Service validation done.")
 	return err
 }
 
@@ -607,7 +546,7 @@ func (this *MaestroDoc) Apply() error {
 	}
 
 	for i, task := range this.tasks {
-		log.Printf("%3d -- APPLY TASK %s\n", i, task.description)
+		log.Printf("%4d -- APPLY TASK %s\n", i, task.description)
 
 		err = task.Run(context)
 
@@ -619,4 +558,28 @@ func (this *MaestroDoc) Apply() error {
 
 	log.Println("Completed")
 	return err
+}
+
+func (this *MaestroDoc) bind_vars(c Context) {
+	for _, disk := range this.Disks {
+		c.bind_vars(disk)
+	}
+	for _, instance := range this.Instances {
+		c.bind_vars(instance)
+	}
+	for _, artifact := range this.Artifacts {
+		c.bind_vars(artifact)
+	}
+	for _, image := range this.Images {
+		c.bind_vars(image)
+	}
+	for _, container := range this.Containers {
+		c.bind_vars(container)
+	}
+	for _, job := range this.Jobs {
+		c.bind_vars(job)
+	}
+	for _, service := range this.services {
+		c.bind_vars(service)
+	}
 }

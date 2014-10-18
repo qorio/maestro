@@ -28,7 +28,7 @@ func ParseKey(file string) (ssh.Signer, error) {
 	return private, nil
 }
 
-type sshClient struct {
+type Client struct {
 	config *ssh.ClientConfig
 	client *ssh.Client
 }
@@ -63,12 +63,20 @@ func ParsePublicKey(keyBytes []byte) (*PublicKey, error) {
 	}, nil
 }
 
-func KeyFileAuthMethod(keyfile string) (ssh.AuthMethod, error) {
-	key, err := ParseKey(keyfile)
+func KeyFileAuthMethod(privateKeyfile string) (ssh.AuthMethod, error) {
+	key, err := ParseKey(privateKeyfile)
 	if err != nil {
 		return nil, err
 	}
 	return ssh.PublicKeys(key), nil
+}
+
+func KeyBytesAuthMethod(buff []byte) (ssh.AuthMethod, error) {
+	private, err := ssh.ParsePrivateKey(buff)
+	if err != nil {
+		return nil, err
+	}
+	return ssh.PublicKeys(private), nil
 }
 
 func AgentAuthMethod() (ssh.AuthMethod, error) {
@@ -88,16 +96,8 @@ func AgentAuthMethod() (ssh.AuthMethod, error) {
 	return ssh.PublicKeys(auths...), nil
 }
 
-func KeyBytesAuthMethod(buff []byte) (ssh.AuthMethod, error) {
-	private, err := ssh.ParsePrivateKey(buff)
-	if err != nil {
-		return nil, err
-	}
-	return ssh.PublicKeys(private), nil
-}
-
-func NewClient(user, host string, auth ssh.AuthMethod) (*sshClient, error) {
-	c := &sshClient{
+func NewClient(user, host string, auth ssh.AuthMethod) (*Client, error) {
+	c := &Client{
 		config: &ssh.ClientConfig{
 			User: user,
 			Auth: []ssh.AuthMethod{
@@ -113,7 +113,7 @@ func NewClient(user, host string, auth ssh.AuthMethod) (*sshClient, error) {
 	return c, nil
 }
 
-func (this *sshClient) RunCommandStdout(cmd string) ([]byte, error) {
+func (this *Client) RunCommandStdout(cmd string) ([]byte, error) {
 	session, err := this.client.NewSession()
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ const (
 	SCP_PUSH_END        = "\x00"
 )
 
-func (this *sshClient) CopyFile(srcFile, destFile string) error {
+func (this *Client) CopyFile(srcFile, destFile string) error {
 	src, err := os.Open(srcFile)
 	if err != nil {
 		return err
@@ -139,12 +139,12 @@ func (this *sshClient) CopyFile(srcFile, destFile string) error {
 	return this.Copy(src, stat.Mode(), stat.Size(), destFile)
 }
 
-func (this *sshClient) CopyBytes(data []byte, perm os.FileMode, destFile string) error {
+func (this *Client) CopyBytes(data []byte, perm os.FileMode, destFile string) error {
 	src := bytes.NewBuffer(data)
 	return this.Copy(src, perm, int64(src.Len()), destFile)
 }
 
-func (this *sshClient) Copy(data io.Reader, perm os.FileMode, size int64, destFile string) error {
+func (this *Client) Copy(data io.Reader, perm os.FileMode, size int64, destFile string) error {
 	session, err := this.client.NewSession()
 	if err != nil {
 		return err
