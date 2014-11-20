@@ -318,12 +318,6 @@ func (this *znode) ListAllRecursive() ([]string, error) {
 }
 
 func (this *znode) ChildrenRecursive() ([]*znode, error) {
-	if this == nil {
-		panic(errors.New("whoa"))
-	}
-	if this.zk == nil {
-		panic(errors.New("no-zk!!"))
-	}
 	if err := this.zk.check(); err != nil {
 		return nil, err
 	}

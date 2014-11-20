@@ -94,7 +94,12 @@ func (suite *ZkTests) TestFullPathObjects(c *C) {
 
 	defer z.Close()
 
-	top, _ := z.Get("/dir1")
+	top, err := z.Get("/dir1")
+	if err == ErrNotExist {
+		top, err = z.Create("/dir1", nil)
+		c.Assert(err, Equals, nil)
+	}
+	c.Assert(top, Not(Equals), (*znode)(nil))
 	all_children, err := top.ChildrenRecursive()
 	c.Assert(err, Equals, nil)
 	for _, n := range all_children {
