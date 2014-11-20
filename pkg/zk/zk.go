@@ -4,7 +4,8 @@ import (
 	"errors"
 	"github.com/golang/glog"
 	"github.com/samuel/go-zookeeper/zk"
-	_ "strings"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -81,8 +82,22 @@ func (this *zookeeper) Get(path string) (*znode, error) {
 	return &znode{Path: path, Value: value, Stats: stats, zk: this}, nil
 }
 
+func (this *zookeeper) Watch(path string, f func(zk.Event)) (chan<- bool, error) {
+	if err := this.check(); err != nil {
+		return nil, err
+	}
+	_, _, event_chan, err := this.conn.ExistsW(path)
+	if err != nil {
+		return nil, err
+	}
+	return run_watch(f, event_chan)
+}
+
 func (this *zookeeper) Create(path string, value []byte) (*znode, error) {
 	if err := this.check(); err != nil {
+		return nil, err
+	}
+	if err := this.build_parents(path); err != nil {
 		return nil, err
 	}
 	return this.create(path, value, false)
@@ -92,26 +107,49 @@ func (this *zookeeper) CreateEphemeral(path string, value []byte) (*znode, error
 	if err := this.check(); err != nil {
 		return nil, err
 	}
+	if err := this.build_parents(path); err != nil {
+		return nil, err
+	}
 	return this.create(path, value, true)
 }
 
-func (this *zookeeper) create(path string, value []byte, ephemeral bool) (*znode, error) {
-	// root := ""
-	// for _, p := range strings.Split(path, "/") {
-	// 	test := root + "/" + p
-	// 	root = test
-	// 	exists, _, err := this.conn.Exists(test)
-	// 	if err == nil {
-	// 		return nil, err
-	// 	}
-	// 	if !exists {
-	// 		_, err := this.create(test, nil, false)
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 	}
-	// }
+func get_targets(path string) []string {
+	p := path
+	if p[0:1] != "/" {
+		p = "/" + path // Must begin with /
+	}
+	pp := strings.Split(p, "/")
+	t := []string{}
+	root := ""
+	for _, x := range pp[1:] {
+		z := root + "/" + x
+		root = z
+		t = append(t, z)
+	}
+	return t
+}
 
+func (this *zookeeper) build_parents(path string) error {
+	dir := filepath.Dir(path)
+	if dir == "." {
+		return nil
+	}
+	for _, p := range get_targets(dir) {
+		exists, _, err := this.conn.Exists(p)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			_, err := this.create(p, []byte{}, false)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (this *zookeeper) create(path string, value []byte, ephemeral bool) (*znode, error) {
 	key := path
 	flags := int32(0)
 	if ephemeral {
@@ -137,18 +175,60 @@ type znode struct {
 	zk    *zookeeper
 }
 
+func filter_err(err error) error {
+	switch {
+	case err == zk.ErrNoNode:
+		return ErrNotExist
+	default:
+		return err
+	}
+}
+
 func (this *znode) Get() error {
 	if err := this.zk.check(); err != nil {
 		return err
 	}
 	v, s, err := this.zk.conn.Get(this.Path)
 	if err != nil {
-		return err
-	} else {
-		this.Value = v
-		this.Stats = s
+		return filter_err(err)
 	}
+	this.Value = v
+	this.Stats = s
 	return nil
+}
+
+func run_watch(f func(zk.Event), event_chan <-chan zk.Event) (chan<- bool, error) {
+	if f != nil {
+		stop := make(chan bool, 1)
+		go func() {
+			for {
+				select {
+				case event := <-event_chan:
+					f(event)
+				case b := <-stop:
+					if b {
+						glog.Infoln("Watch terminated")
+						return
+					}
+				}
+			}
+		}()
+		return stop, nil
+	}
+	return nil, nil
+}
+
+func (this *znode) Watch(f func(zk.Event)) (chan<- bool, error) {
+	if err := this.zk.check(); err != nil {
+		return nil, err
+	}
+	value, stat, event_chan, err := this.zk.conn.GetW(this.Path)
+	if err != nil {
+		return nil, filter_err(err)
+	}
+	this.Value = value
+	this.Stats = stat
+	return run_watch(f, event_chan)
 }
 
 func (this *znode) Set(value []byte) error {
@@ -157,11 +237,10 @@ func (this *znode) Set(value []byte) error {
 	}
 	s, err := this.zk.conn.Set(this.Path, value, this.Stats.Version)
 	if err != nil {
-		return err
-	} else {
-		this.Value = value
-		this.Stats = s
+		return filter_err(err)
 	}
+	this.Value = value
+	this.Stats = s
 	return nil
 }
 
@@ -247,7 +326,7 @@ func (this *znode) ChildrenRecursive() ([]*znode, error) {
 		return nil, err
 	}
 	for _, n := range children {
-		l, err := n.Children()
+		l, err := n.ChildrenRecursive()
 		if err != nil {
 			return nil, err
 		}
