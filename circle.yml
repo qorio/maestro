@@ -32,7 +32,7 @@ dependencies:
 test:
   override:
     - godep go test ./pkg/... -v -check.vv -check.f TestExecute
-    - godep go test ./pkg/... -v -check.vv -check.f ZkTests
+    - godep go test ./pkg/... -v -check.vv -check.f ZkTests --logtostderr
 
 
 ## Customize deployment commands
