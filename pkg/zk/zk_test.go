@@ -190,7 +190,9 @@ func (suite *ZkTests) TestWatcher(c *C) {
 	c.Log("z2 sees", top22)
 
 	stop22, err := top22.Watch(func(e zk.Event) {
-		c.Log("Got event :::::", e)
+		if e.State != zk.StateDisconnected {
+			c.Log("Got event :::::", e)
+		}
 	})
 	c.Assert(err, Equals, nil)
 
@@ -200,21 +202,20 @@ func (suite *ZkTests) TestWatcher(c *C) {
 	// Now watch something else
 	new_path := "/new/path/to/be/created"
 	stop23, err := z2.Watch(new_path, func(e zk.Event) {
-		c.Log("Got event -----", e)
+		if e.State != zk.StateDisconnected {
+			c.Log("Got event -----", e)
+		}
 	})
 	c.Assert(err, Equals, nil)
 
-	top22.Set([]byte("New value 2"))
-
 	// Create a new node
-	top13, err := z1.CreateEphemeral(new_path, nil)
+	_, err = z1.CreateEphemeral(new_path, nil)
 	c.Assert(err, Equals, nil)
-
-	top13.Set([]byte("new!!!!"))
 
 	c.Log("closing z1")
 	z1.Close() // the ephemeral node /11 should go away
 
+	time.Sleep(1 * time.Second)
 	c.Log("sending stop")
 	stop22 <- true
 	stop23 <- true
