@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/qorio/maestro",
-	"GoVersion": "go1.3.1",
+	"GoVersion": "go1.3.3",
 	"Packages": [
 		"./..."
 	],
@@ -51,6 +51,11 @@
 			"Rev": "984b072a37ee090bc24511137919211ec2fbb542"
 		},
 		{
+			"ImportPath": "github.com/docker/docker/pkg/units",
+			"Comment": "v1.3.0-875-g984b072",
+			"Rev": "984b072a37ee090bc24511137919211ec2fbb542"
+		},
+		{
 			"ImportPath": "github.com/docker/docker/vendor/src/code.google.com/p/go/src/pkg/archive/tar",
 			"Comment": "v1.3.0-875-g984b072",
 			"Rev": "984b072a37ee090bc24511137919211ec2fbb542"
@@ -67,6 +72,11 @@
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
 			"Rev": "e59e565ab27039f8e13527b108788c53642a1fa3"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/ssh",
+			"Comment": "null-236",
+			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
