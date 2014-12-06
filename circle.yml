@@ -21,6 +21,7 @@ machine:
 dependencies:
   pre:
     - go version
+    - ./zookeeper/bin/zkServer.sh start
 
   override:
     - source ./bin/env.sh
@@ -31,6 +32,8 @@ dependencies:
 test:
   override:
     - godep go test ./pkg/... -v -check.vv -check.f TestExecute
+    - godep go test ./pkg/zk/... -v -check.vv --logtostderr
+
 
 ## Customize deployment commands
 deployment:
