@@ -33,7 +33,7 @@ test:
   override:
     - godep go test ./pkg/... -v -check.vv -check.f TestExecute
     - godep go test ./pkg/zk/... -v -check.vv --logtostderr
-    - godep go test ./pkg/docker/... -v -check.vv
+    #- godep go test ./pkg/docker/... -v -check.vv
 
 
 ## Customize deployment commands
