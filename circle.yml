@@ -27,6 +27,8 @@ dependencies:
     - source ./bin/env.sh
 
   post:
+    - make zkstart
+    - cp ./bin/zkstart $CIRCLE_ARTIFACTS
 
 ## Customize test commands
 test:

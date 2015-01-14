@@ -13,6 +13,11 @@ import (
 	"time"
 )
 
+// Value set by ldflag (-X main.BUILD_VERSION version) during build
+var (
+	BUILD_VERSION   string
+	BUILD_TIMESTAMP string
+)
 var (
 	stdin   = flag.Bool("stdin", false, "User stdin for input")
 	stdout  = flag.Bool("stdout", false, "Wrtie to stdout")
@@ -81,6 +86,13 @@ func read_from_zk() ([]string, map[string]string) {
 // export $(go run main/zk_env.go -hosts="localhost:21810" -root=/zk/root | xargs) && echo $VAR
 // http://stackoverflow.com/questions/19331497/set-environment-variables-from-file
 func main() {
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "%s version %s, built on %s\n", os.Args[0], BUILD_VERSION, BUILD_TIMESTAMP)
+		fmt.Fprintf(os.Stderr, "Usage:\n")
+		fmt.Fprintf(os.Stderr, "Flags:\n")
+		flag.PrintDefaults()
+	}
 
 	flag.Parse()
 
