@@ -130,6 +130,49 @@ func (suite *ZkTests) TestFullPathObjects(c *C) {
 	}
 }
 
+func (suite *ZkTests) TestAppEnvironments(c *C) {
+	z, err := Connect([]string{"localhost:2181"}, time.Second)
+	c.Assert(err, Equals, nil)
+
+	defer z.Close()
+
+	// Common use case of storing properties under different environments
+	expects := map[string]string{
+		"/environments/integration/database/driver":     "postgres",
+		"/environments/integration/database/dbname":     "pg_db",
+		"/environments/integration/database/user":       "pg_user",
+		"/environments/integration/database/password":   "password",
+		"/environments/integration/database/port":       "5432",
+		"/environments/integration/env/S3_API_KEY":      "s3-api-key",
+		"/environments/integration/env/S3_API_SECRET":   "s3-api-secret",
+		"/environments/integration/env/SERVICE_API_KEY": "service-api-key",
+	}
+
+	for k, v := range expects {
+		_, err = z.Create(k, []byte(v))
+		c.Log(k, "err", err)
+		//c.Assert(err, Equals, nil)
+	}
+
+	integration, err := z.Get("/environments/integration")
+	c.Assert(err, Equals, nil)
+
+	all, err := integration.FilterChildrenRecursive(func(z Node) bool {
+		return !z.IsLeaf() // filter out parent nodes
+	})
+	c.Assert(err, Equals, nil)
+
+	for _, n := range all {
+		c.Log(n.GetBasename(), "=", string(n.Value))
+	}
+	c.Assert(len(all), Equals, len(expects)) // exactly as the map since we filter out the parent node /database
+
+	for _, n := range all {
+		err = n.Delete()
+		c.Assert(err, Equals, nil)
+	}
+}
+
 func (suite *ZkTests) TestEphemeral(c *C) {
 	z1, err := Connect([]string{"localhost:2181"}, time.Second)
 	c.Assert(err, Equals, nil)

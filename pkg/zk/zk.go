@@ -14,10 +14,42 @@ var (
 	ErrNotExist     = errors.New("zk-not-exist")
 )
 
+type Node interface {
+	GetPath() string
+	GetBasename() string
+	GetValue() []byte
+	GetValueString() string
+	IsLeaf() bool
+}
+
 type zookeeper struct {
 	conn    *zk.Conn
 	servers []string
 	timeout time.Duration
+}
+
+func (z *znode) GetPath() string {
+	return z.Path
+}
+func (z *znode) GetBasename() string {
+	return filepath.Base(z.Path)
+}
+func (z *znode) GetValue() []byte {
+	return z.Value
+}
+func (z *znode) GetValueString() string {
+	return string(z.Value)
+}
+func (z *znode) IsLeaf() bool {
+	return z.Leaf
+}
+
+type znode struct {
+	Path  string
+	Value []byte
+	Stats *zk.Stat
+	Leaf  bool
+	zk    *zookeeper
 }
 
 func Connect(servers []string, timeout time.Duration) (*zookeeper, error) {
@@ -155,7 +187,7 @@ func (this *zookeeper) create(path string, value []byte, ephemeral bool) (*znode
 	if ephemeral {
 		flags = int32(zk.FlagEphemeral)
 	}
-	acl := zk.WorldACL(zk.PermAll)
+	acl := zk.WorldACL(zk.PermAll) // TODO - PermAll permission
 	p, err := this.conn.Create(key, value, flags, acl)
 	if err != nil {
 		return nil, err
@@ -166,13 +198,6 @@ func (this *zookeeper) create(path string, value []byte, ephemeral bool) (*znode
 		return nil, err
 	}
 	return zn, nil
-}
-
-type znode struct {
-	Path  string
-	Value []byte
-	Stats *zk.Stat
-	zk    *zookeeper
 }
 
 func filter_err(err error) error {
@@ -327,6 +352,9 @@ func (this *znode) ChildrenRecursive() ([]*znode, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	this.Leaf = len(children) == 0
+
 	for _, n := range children {
 		l, err := n.ChildrenRecursive()
 		if err != nil {
@@ -334,6 +362,37 @@ func (this *znode) ChildrenRecursive() ([]*znode, error) {
 		}
 		list = append_znode_slices(list, l)
 		list = append(list, n)
+	}
+	return list, nil
+}
+
+// Recursively go through all the children.  Apply filter for each node. If filter returns
+// true for the particular node, this node (though not necessarily all its children) will be
+// excluded.  This is useful for searching through all true by name or by whether it's a parent
+// node or not.
+func (this *znode) FilterChildrenRecursive(filter func(Node) bool) ([]*znode, error) {
+	if err := this.zk.check(); err != nil {
+		return nil, err
+	}
+	list := make([]*znode, 0)
+
+	children, err := this.Children()
+	if err != nil {
+		return nil, err
+	}
+
+	this.Leaf = len(children) == 0
+
+	for _, n := range children {
+		l, err := n.FilterChildrenRecursive(filter)
+		if err != nil {
+			return nil, err
+		}
+		list = append_znode_slices(list, l)
+		add := filter == nil || (filter != nil && !filter(n))
+		if add {
+			list = append(list, n)
+		}
 	}
 	return list, nil
 }
