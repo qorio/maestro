@@ -14,12 +14,27 @@ var (
 	ErrNotExist     = errors.New("zk-not-exist")
 )
 
+type Event zk.Event
+
+type ZK interface {
+	Reconnect() error
+	Close() error
+
+	Create(string, []byte) (Node, error)
+	CreateEphemeral(string, []byte) (Node, error)
+	Get(string) (Node, error)
+	Watch(string, func(Event)) (chan<- bool, error)
+	Delete(string) error
+}
+
 type Node interface {
 	GetPath() string
 	GetBasename() string
 	GetValue() []byte
 	GetValueString() string
 	IsLeaf() bool
+	Set([]byte) error
+	FilterChildrenRecursive(func(Node) bool) ([]*znode, error)
 }
 
 type zookeeper struct {
@@ -95,7 +110,7 @@ func (this *zookeeper) Delete(path string) error {
 	return this.conn.Delete(path, -1)
 }
 
-func (this *zookeeper) Get(path string) (*znode, error) {
+func (this *zookeeper) Get(path string) (Node, error) {
 	if err := this.check(); err != nil {
 		return nil, err
 	}
@@ -114,7 +129,7 @@ func (this *zookeeper) Get(path string) (*znode, error) {
 	return &znode{Path: path, Value: value, Stats: stats, zk: this}, nil
 }
 
-func (this *zookeeper) Watch(path string, f func(zk.Event)) (chan<- bool, error) {
+func (this *zookeeper) Watch(path string, f func(Event)) (chan<- bool, error) {
 	if err := this.check(); err != nil {
 		return nil, err
 	}
@@ -125,7 +140,7 @@ func (this *zookeeper) Watch(path string, f func(zk.Event)) (chan<- bool, error)
 	return run_watch(f, event_chan)
 }
 
-func (this *zookeeper) Create(path string, value []byte) (*znode, error) {
+func (this *zookeeper) Create(path string, value []byte) (Node, error) {
 	if err := this.check(); err != nil {
 		return nil, err
 	}
@@ -135,7 +150,7 @@ func (this *zookeeper) Create(path string, value []byte) (*znode, error) {
 	return this.create(path, value, false)
 }
 
-func (this *zookeeper) CreateEphemeral(path string, value []byte) (*znode, error) {
+func (this *zookeeper) CreateEphemeral(path string, value []byte) (Node, error) {
 	if err := this.check(); err != nil {
 		return nil, err
 	}
@@ -222,7 +237,7 @@ func (this *znode) Get() error {
 	return nil
 }
 
-func run_watch(f func(zk.Event), event_chan <-chan zk.Event) (chan<- bool, error) {
+func run_watch(f func(Event), event_chan <-chan zk.Event) (chan<- bool, error) {
 	if f != nil {
 		stop := make(chan bool, 1)
 		go func() {
@@ -231,8 +246,7 @@ func run_watch(f func(zk.Event), event_chan <-chan zk.Event) (chan<- bool, error
 			// Therefore, there's no point looping in here for more than 1 event.
 			select {
 			case event := <-event_chan:
-				f(event)
-				// TODO - reschedule another watch
+				f(Event(event))
 			case b := <-stop:
 				if b {
 					glog.Infoln("Watch terminated")
@@ -245,7 +259,7 @@ func run_watch(f func(zk.Event), event_chan <-chan zk.Event) (chan<- bool, error
 	return nil, nil
 }
 
-func (this *znode) Watch(f func(zk.Event)) (chan<- bool, error) {
+func (this *znode) Watch(f func(Event)) (chan<- bool, error) {
 	if err := this.zk.check(); err != nil {
 		return nil, err
 	}
