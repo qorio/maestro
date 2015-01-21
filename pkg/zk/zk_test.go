@@ -99,7 +99,7 @@ func (suite *ZkTests) TestFullPathObjects(c *C) {
 		top, err = z.Create("/dir1", nil)
 		c.Assert(err, Equals, nil)
 	}
-	c.Assert(top, Not(Equals), (*znode)(nil))
+	c.Assert(top, Not(Equals), (*Node)(nil))
 	all_children, err := top.ChildrenRecursive()
 	c.Assert(err, Equals, nil)
 	for _, n := range all_children {
@@ -157,7 +157,7 @@ func (suite *ZkTests) TestAppEnvironments(c *C) {
 	integration, err := z.Get("/environments/integration")
 	c.Assert(err, Equals, nil)
 
-	all, err := integration.FilterChildrenRecursive(func(z Node) bool {
+	all, err := integration.FilterChildrenRecursive(func(z *Node) bool {
 		return !z.IsLeaf() // filter out parent nodes
 	})
 	c.Assert(err, Equals, nil)
@@ -237,7 +237,7 @@ func (suite *ZkTests) TestWatcher(c *C) {
 	c.Assert(err, Not(Equals), ErrNotExist)
 	c.Log("z2 sees", top22)
 
-	stop22, err := top22.Watch(func(e zk.Event) {
+	stop22, err := top22.Watch(func(e Event) {
 		if e.State != zk.StateDisconnected {
 			c.Log("Got event :::::", e)
 		}
@@ -249,7 +249,7 @@ func (suite *ZkTests) TestWatcher(c *C) {
 
 	// Now watch something else
 	new_path := "/new/path/to/be/created"
-	stop23, err := z2.Watch(new_path, func(e zk.Event) {
+	stop23, err := z2.Watch(new_path, func(e Event) {
 		if e.State != zk.StateDisconnected {
 			c.Log("Got event -----", e)
 		}

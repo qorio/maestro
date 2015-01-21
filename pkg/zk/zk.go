@@ -20,22 +20,22 @@ type ZK interface {
 	Reconnect() error
 	Close() error
 
-	Create(string, []byte) (Node, error)
-	CreateEphemeral(string, []byte) (Node, error)
-	Get(string) (Node, error)
+	Create(string, []byte) (*Node, error)
+	CreateEphemeral(string, []byte) (*Node, error)
+	Get(string) (*Node, error)
 	Watch(string, func(Event)) (chan<- bool, error)
 	Delete(string) error
 }
 
-type Node interface {
-	GetPath() string
-	GetBasename() string
-	GetValue() []byte
-	GetValueString() string
-	IsLeaf() bool
-	Set([]byte) error
-	FilterChildrenRecursive(func(Node) bool) ([]*znode, error)
-}
+// type Node interface {
+// 	GetPath() string
+// 	GetBasename() string
+// 	GetValue() []byte
+// 	GetValueString() string
+// 	IsLeaf() bool
+// 	Set([]byte) error
+// 	FilterChildrenRecursive(func(Node) bool) ([]*znode, error)
+// }
 
 type zookeeper struct {
 	conn    *zk.Conn
@@ -43,23 +43,23 @@ type zookeeper struct {
 	timeout time.Duration
 }
 
-func (z *znode) GetPath() string {
+func (z *Node) GetPath() string {
 	return z.Path
 }
-func (z *znode) GetBasename() string {
+func (z *Node) GetBasename() string {
 	return filepath.Base(z.Path)
 }
-func (z *znode) GetValue() []byte {
+func (z *Node) GetValue() []byte {
 	return z.Value
 }
-func (z *znode) GetValueString() string {
+func (z *Node) GetValueString() string {
 	return string(z.Value)
 }
-func (z *znode) IsLeaf() bool {
+func (z *Node) IsLeaf() bool {
 	return z.Leaf
 }
 
-type znode struct {
+type Node struct {
 	Path  string
 	Value []byte
 	Stats *zk.Stat
@@ -110,7 +110,7 @@ func (this *zookeeper) Delete(path string) error {
 	return this.conn.Delete(path, -1)
 }
 
-func (this *zookeeper) Get(path string) (Node, error) {
+func (this *zookeeper) Get(path string) (*Node, error) {
 	if err := this.check(); err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (this *zookeeper) Get(path string) (Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &znode{Path: path, Value: value, Stats: stats, zk: this}, nil
+	return &Node{Path: path, Value: value, Stats: stats, zk: this}, nil
 }
 
 func (this *zookeeper) Watch(path string, f func(Event)) (chan<- bool, error) {
@@ -140,7 +140,7 @@ func (this *zookeeper) Watch(path string, f func(Event)) (chan<- bool, error) {
 	return run_watch(f, event_chan)
 }
 
-func (this *zookeeper) Create(path string, value []byte) (Node, error) {
+func (this *zookeeper) Create(path string, value []byte) (*Node, error) {
 	if err := this.check(); err != nil {
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func (this *zookeeper) Create(path string, value []byte) (Node, error) {
 	return this.create(path, value, false)
 }
 
-func (this *zookeeper) CreateEphemeral(path string, value []byte) (Node, error) {
+func (this *zookeeper) CreateEphemeral(path string, value []byte) (*Node, error) {
 	if err := this.check(); err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (this *zookeeper) build_parents(path string) error {
 	return nil
 }
 
-func (this *zookeeper) create(path string, value []byte, ephemeral bool) (*znode, error) {
+func (this *zookeeper) create(path string, value []byte, ephemeral bool) (*Node, error) {
 	key := path
 	flags := int32(0)
 	if ephemeral {
@@ -207,7 +207,7 @@ func (this *zookeeper) create(path string, value []byte, ephemeral bool) (*znode
 	if err != nil {
 		return nil, err
 	}
-	zn := &znode{Path: p, Value: value, zk: this}
+	zn := &Node{Path: p, Value: value, zk: this}
 	err = zn.Get()
 	if err != nil {
 		return nil, err
@@ -224,7 +224,7 @@ func filter_err(err error) error {
 	}
 }
 
-func (this *znode) Get() error {
+func (this *Node) Get() error {
 	if err := this.zk.check(); err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func run_watch(f func(Event), event_chan <-chan zk.Event) (chan<- bool, error) {
 	return nil, nil
 }
 
-func (this *znode) Watch(f func(Event)) (chan<- bool, error) {
+func (this *Node) Watch(f func(Event)) (chan<- bool, error) {
 	if err := this.zk.check(); err != nil {
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func (this *znode) Watch(f func(Event)) (chan<- bool, error) {
 	return run_watch(f, event_chan)
 }
 
-func (this *znode) Set(value []byte) error {
+func (this *Node) Set(value []byte) error {
 	if err := this.zk.check(); err != nil {
 		return err
 	}
@@ -285,7 +285,7 @@ func (this *znode) Set(value []byte) error {
 	return nil
 }
 
-func (this *znode) CountChildren() int32 {
+func (this *Node) CountChildren() int32 {
 	if this.Stats == nil {
 		if err := this.Get(); err != nil {
 			return -1
@@ -294,7 +294,7 @@ func (this *znode) CountChildren() int32 {
 	return this.Stats.NumChildren
 }
 
-func (this *znode) Children() ([]*znode, error) {
+func (this *Node) Children() ([]*Node, error) {
 	if err := this.zk.check(); err != nil {
 		return nil, err
 	}
@@ -303,9 +303,9 @@ func (this *znode) Children() ([]*znode, error) {
 		return nil, err
 	} else {
 		this.Stats = s
-		children := make([]*znode, len(paths))
+		children := make([]*Node, len(paths))
 		for i, p := range paths {
-			children[i] = &znode{Path: this.Path + "/" + p, zk: this.zk}
+			children[i] = &Node{Path: this.Path + "/" + p, zk: this.zk}
 			err := children[i].Get()
 			if err != nil {
 				return nil, err
@@ -325,9 +325,9 @@ func append_string_slices(a, b []string) []string {
 	return ll
 }
 
-func append_znode_slices(a, b []*znode) []*znode {
+func append_node_slices(a, b []*Node) []*Node {
 	l := len(a)
-	ll := make([]*znode, l+len(b))
+	ll := make([]*Node, l+len(b))
 	copy(ll, a)
 	for i, n := range b {
 		ll[i+l] = n
@@ -335,7 +335,7 @@ func append_znode_slices(a, b []*znode) []*znode {
 	return ll
 }
 
-func (this *znode) ListAllRecursive() ([]string, error) {
+func (this *Node) ListAllRecursive() ([]string, error) {
 	if err := this.zk.check(); err != nil {
 		return nil, err
 	}
@@ -356,11 +356,11 @@ func (this *znode) ListAllRecursive() ([]string, error) {
 	return list, nil
 }
 
-func (this *znode) ChildrenRecursive() ([]*znode, error) {
+func (this *Node) ChildrenRecursive() ([]*Node, error) {
 	if err := this.zk.check(); err != nil {
 		return nil, err
 	}
-	list := make([]*znode, 0)
+	list := make([]*Node, 0)
 
 	children, err := this.Children()
 	if err != nil {
@@ -374,7 +374,7 @@ func (this *znode) ChildrenRecursive() ([]*znode, error) {
 		if err != nil {
 			return nil, err
 		}
-		list = append_znode_slices(list, l)
+		list = append_node_slices(list, l)
 		list = append(list, n)
 	}
 	return list, nil
@@ -384,11 +384,11 @@ func (this *znode) ChildrenRecursive() ([]*znode, error) {
 // true for the particular node, this node (though not necessarily all its children) will be
 // excluded.  This is useful for searching through all true by name or by whether it's a parent
 // node or not.
-func (this *znode) FilterChildrenRecursive(filter func(Node) bool) ([]*znode, error) {
+func (this *Node) FilterChildrenRecursive(filter func(*Node) bool) ([]*Node, error) {
 	if err := this.zk.check(); err != nil {
 		return nil, err
 	}
-	list := make([]*znode, 0)
+	list := make([]*Node, 0)
 
 	children, err := this.Children()
 	if err != nil {
@@ -402,7 +402,7 @@ func (this *znode) FilterChildrenRecursive(filter func(Node) bool) ([]*znode, er
 		if err != nil {
 			return nil, err
 		}
-		list = append_znode_slices(list, l)
+		list = append_node_slices(list, l)
 		add := filter == nil || (filter != nil && !filter(n))
 		if add {
 			list = append(list, n)
@@ -411,7 +411,7 @@ func (this *znode) FilterChildrenRecursive(filter func(Node) bool) ([]*znode, er
 	return list, nil
 }
 
-func (this *znode) Delete() error {
+func (this *Node) Delete() error {
 	if err := this.zk.check(); err != nil {
 		return err
 	}
