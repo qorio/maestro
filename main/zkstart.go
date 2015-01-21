@@ -61,7 +61,7 @@ func read_from_zk() ([]string, map[string]string) {
 	}
 
 	// Just get the entire set of values and export them as environment variables
-	all, err := root_node.FilterChildrenRecursive(func(z zk.Node) bool {
+	all, err := root_node.FilterChildrenRecursive(func(z *zk.Node) bool {
 		return !z.IsLeaf() // filter out parent nodes
 	})
 
