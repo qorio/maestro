@@ -24,18 +24,9 @@ type ZK interface {
 	CreateEphemeral(string, []byte) (*Node, error)
 	Get(string) (*Node, error)
 	Watch(string, func(Event)) (chan<- bool, error)
+	KeepWatch(string, func(Event) bool) (chan<- bool, error)
 	Delete(string) error
 }
-
-// type Node interface {
-// 	GetPath() string
-// 	GetBasename() string
-// 	GetValue() []byte
-// 	GetValueString() string
-// 	IsLeaf() bool
-// 	Set([]byte) error
-// 	FilterChildrenRecursive(func(Node) bool) ([]*znode, error)
-// }
 
 type zookeeper struct {
 	conn    *zk.Conn
@@ -138,6 +129,42 @@ func (this *zookeeper) Watch(path string, f func(Event)) (chan<- bool, error) {
 		return nil, err
 	}
 	return run_watch(f, event_chan)
+}
+
+func (this *zookeeper) KeepWatch(path string, f func(Event) bool) (chan<- bool, error) {
+	if err := this.check(); err != nil {
+		return nil, err
+	}
+	if f == nil {
+		return nil, errors.New("error-nil-watcher")
+	}
+
+	_, _, event_chan, err := this.conn.ExistsW(path)
+	if err != nil {
+		return nil, err
+	}
+	stop := make(chan bool, 1)
+	go func() {
+		for {
+			select {
+			case event := <-event_chan:
+				more := f(Event(event))
+				if more {
+					_, _, event_chan, err = this.conn.ExistsW(path)
+					if err != nil {
+						glog.Warningln("Error on watch", path, err)
+						return
+					}
+				}
+			case b := <-stop:
+				if b {
+					glog.Infoln("Watch terminated:", path)
+					return
+				}
+			}
+		}
+	}()
+	return stop, nil
 }
 
 func (this *zookeeper) Create(path string, value []byte) (*Node, error) {

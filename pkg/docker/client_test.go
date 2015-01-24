@@ -23,9 +23,9 @@ func (suite *DockerClientTests) TestConnectDocker(c *C) {
 	for _, cc := range l {
 		c.Log("container", cc.Id, "image", cc.Image)
 	}
-	ct, err := d.GetContainer(l[0].Id)
+
+	err = l[0].Inspect()
 	c.Assert(err, Equals, nil)
-	c.Log("container", ct)
 
 	addrs, err := net.InterfaceAddrs()
 	c.Assert(err, Equals, nil)

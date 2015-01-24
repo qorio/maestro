@@ -2,58 +2,119 @@ package docker
 
 import (
 	_docker "github.com/fsouza/go-dockerclient"
+	"github.com/golang/glog"
 	"net"
-	"strings"
 )
 
-type client struct {
-	endpoint string
-	docker   *_docker.Client
+type Docker struct {
+	Endpoint string
+
+	Cert string
+	Key  string
+	Ca   string
+
+	docker *_docker.Client
 }
 
+type Port struct {
+	ContainerPort int64  `json:"container_port"`
+	HostPort      int64  `json:"host_port"`
+	Type          string `json:"protocol"`
+	AcceptIP      string `json:"accepts_ip"`
+}
 type Container struct {
-	Id          string
-	Ip          string // the ip from the private network over docker0 interface.
-	Image       string
-	Command     string
-	PortBinding map[_docker.Port][]_docker.PortBinding
+	Id      string `json:"id"`
+	Ip      string `json:"ip"`
+	Image   string `json:"image"`
+	Command string `json:"command"`
+	Ports   []Port `json:"ports"`
+	Network _docker.NetworkSettings
+
+	docker *_docker.Client
 }
 
-func NewClient(endpoint string) (c *client, err error) {
-	c = &client{endpoint: endpoint}
+type Image struct {
+	Registry   string `json:"registry"`
+	Repository string `json:"repository"`
+	Tag        string `json:"tag"`
+}
+type PullImage struct {
+	_docker.PullImageOptions
+	_docker.AuthConfiguration
+}
+
+type StartContainer struct {
+	_docker.CreateContainerOptions
+}
+
+// Endpoint and file paths
+func NewTLSClient(endpoint string, cert, key, ca string) (c *Docker, err error) {
+	c = &Docker{Endpoint: endpoint, Cert: cert, Ca: ca, Key: key}
+	c.docker, err = _docker.NewTLSClient(endpoint, cert, key, ca)
+	return c, err
+}
+
+func NewClient(endpoint string) (c *Docker, err error) {
+	c = &Docker{Endpoint: endpoint}
 	c.docker, err = _docker.NewClient(endpoint)
 	return c, err
 }
 
-func (c *client) GetContainer(id string) (*Container, error) {
-	cc, err := c.docker.InspectContainer(id)
+func (c *Container) Inspect() error {
+	cc, err := c.docker.InspectContainer(c.Id)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	return &Container{
-		Id:          cc.ID,
-		Ip:          cc.NetworkSettings.IPAddress,
-		Image:       cc.Image,
-		Command:     cc.Path + " " + strings.Join(cc.Args, " "),
-		PortBinding: cc.NetworkSettings.Ports,
-	}, nil
+	c.Ip = cc.NetworkSettings.IPAddress
+	c.Network = *cc.NetworkSettings
+	return nil
 }
 
-func (c *client) ListContainers() ([]*Container, error) {
-	l, err := c.docker.ListContainers(_docker.ListContainersOptions{
+func get_ports(list []_docker.APIPort) []Port {
+	out := make([]Port, len(list))
+	for i, p := range list {
+		out[i] = Port{
+			ContainerPort: p.PrivatePort,
+			HostPort:      p.PublicPort,
+			Type:          p.Type,
+			AcceptIP:      p.IP,
+		}
+	}
+	return out
+}
+
+func (c *Docker) ListContainers() ([]*Container, error) {
+	return c.FindContainers(nil)
+}
+
+func (c *Docker) FindContainersByName(name string) ([]*Container, error) {
+	return c.FindContainers(map[string][]string{
+		"name": []string{name},
+	})
+}
+
+func (c *Docker) FindContainers(filter map[string][]string) ([]*Container, error) {
+	options := _docker.ListContainersOptions{
 		All:  true,
 		Size: true,
-	})
+	}
+	if filter != nil {
+		options.Filters = filter
+	}
+	l, err := c.docker.ListContainers(options)
 	if err != nil {
 		return nil, err
 	}
 	out := []*Container{}
 	for _, cc := range l {
+
+		glog.Infoln("Container==>", cc.Ports)
 		out = append(out, &Container{
 			Id:      cc.ID,
 			Image:   cc.Image,
 			Command: cc.Command,
+			Ports:   get_ports(cc.Ports),
+			docker:  c.docker,
 		})
 	}
 	return out, nil
