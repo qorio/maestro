@@ -136,7 +136,7 @@ func (td *tempDir) newPath() string {
 	if td.path == "" {
 		var err error
 		for i := 0; i != 100; i++ {
-			path := fmt.Sprintf("%s%ccheck-%d", os.TempDir(), os.PathSeparator, rand.Int())
+			path := fmt.Sprintf("%s/check-%d", os.TempDir(), rand.Int())
 			if err = os.Mkdir(path, 0700); err == nil {
 				td.path = path
 				break
@@ -311,28 +311,26 @@ var valueGo = filepath.Join("reflect", "value.go")
 var asmGo = filepath.Join("runtime", "asm_")
 
 func (c *C) logPanic(skip int, value interface{}) {
-	skip++ // Our own frame.
+	skip += 1 // Our own frame.
 	initialSkip := skip
-	for ; ; skip++ {
+	for {
 		if pc, file, line, ok := runtime.Caller(skip); ok {
 			if skip == initialSkip {
 				c.logf("... Panic: %s (PC=0x%X)\n", value, pc)
 			}
 			name := niceFuncName(pc)
 			path := nicePath(file)
-			if strings.Contains(path, "/gopkg.in/check.v") {
-				continue
-			}
 			if name == "Value.call" && strings.HasSuffix(path, valueGo) {
-				continue
+				break
 			}
 			if name == "call16" && strings.Contains(path, asmGo) {
-				continue
+				break
 			}
 			c.logf("%s:%d\n  in %s", nicePath(file), line, name)
 		} else {
 			break
 		}
+		skip += 1
 	}
 }
 

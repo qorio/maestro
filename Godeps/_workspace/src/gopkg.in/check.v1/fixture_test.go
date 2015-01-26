@@ -55,12 +55,11 @@ func (s *FixtureS) TestPanicOnTest(c *C) {
 		"PANIC: check_test\\.go:[0-9]+: FixtureHelper.Test1\n\n" +
 		"\\.\\.\\. Panic: Test1 \\(PC=[xA-F0-9]+\\)\n\n" +
 		".+:[0-9]+\n" +
-		"  in (go)?panic\n" +
+		"  in panic\n" +
 		".*check_test.go:[0-9]+\n" +
 		"  in FixtureHelper.trace\n" +
 		".*check_test.go:[0-9]+\n" +
-		"  in FixtureHelper.Test1\n" +
-		"(.|\n)*$"
+		"  in FixtureHelper.Test1\n$"
 
 	c.Check(output.value, Matches, expected)
 }
@@ -80,12 +79,11 @@ func (s *FixtureS) TestPanicOnSetUpTest(c *C) {
 		"FixtureHelper\\.SetUpTest\n\n" +
 		"\\.\\.\\. Panic: SetUpTest \\(PC=[xA-F0-9]+\\)\n\n" +
 		".+:[0-9]+\n" +
-		"  in (go)?panic\n" +
+		"  in panic\n" +
 		".*check_test.go:[0-9]+\n" +
 		"  in FixtureHelper.trace\n" +
 		".*check_test.go:[0-9]+\n" +
 		"  in FixtureHelper.SetUpTest\n" +
-		"(.|\n)*" +
 		"\n-+\n" +
 		"PANIC: check_test\\.go:[0-9]+: " +
 		"FixtureHelper\\.Test1\n\n" +
@@ -111,12 +109,11 @@ func (s *FixtureS) TestPanicOnTearDownTest(c *C) {
 		"FixtureHelper.TearDownTest\n\n" +
 		"\\.\\.\\. Panic: TearDownTest \\(PC=[xA-F0-9]+\\)\n\n" +
 		".+:[0-9]+\n" +
-		"  in (go)?panic\n" +
+		"  in panic\n" +
 		".*check_test.go:[0-9]+\n" +
 		"  in FixtureHelper.trace\n" +
 		".*check_test.go:[0-9]+\n" +
 		"  in FixtureHelper.TearDownTest\n" +
-		"(.|\n)*" +
 		"\n-+\n" +
 		"PANIC: check_test\\.go:[0-9]+: " +
 		"FixtureHelper\\.Test1\n\n" +
@@ -139,12 +136,11 @@ func (s *FixtureS) TestPanicOnSetUpSuite(c *C) {
 		"FixtureHelper.SetUpSuite\n\n" +
 		"\\.\\.\\. Panic: SetUpSuite \\(PC=[xA-F0-9]+\\)\n\n" +
 		".+:[0-9]+\n" +
-		"  in (go)?panic\n" +
+		"  in panic\n" +
 		".*check_test.go:[0-9]+\n" +
 		"  in FixtureHelper.trace\n" +
 		".*check_test.go:[0-9]+\n" +
-		"  in FixtureHelper.SetUpSuite\n" +
-		"(.|\n)*$"
+		"  in FixtureHelper.SetUpSuite\n$"
 
 	c.Check(output.value, Matches, expected)
 }
@@ -168,12 +164,11 @@ func (s *FixtureS) TestPanicOnTearDownSuite(c *C) {
 		"FixtureHelper.TearDownSuite\n\n" +
 		"\\.\\.\\. Panic: TearDownSuite \\(PC=[xA-F0-9]+\\)\n\n" +
 		".+:[0-9]+\n" +
-		"  in (go)?panic\n" +
+		"  in panic\n" +
 		".*check_test.go:[0-9]+\n" +
 		"  in FixtureHelper.trace\n" +
 		".*check_test.go:[0-9]+\n" +
-		"  in FixtureHelper.TearDownSuite\n" +
-		"(.|\n)*$"
+		"  in FixtureHelper.TearDownSuite\n$"
 
 	c.Check(output.value, Matches, expected)
 }
