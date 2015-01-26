@@ -25,6 +25,7 @@ dependencies:
 
   override:
     - source ./bin/env.sh
+    - go get github.com/docker/docker/pkg/units
 
   post:
     - make zkstart
