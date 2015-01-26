@@ -4,6 +4,7 @@ import (
 	_docker "github.com/fsouza/go-dockerclient"
 	"github.com/golang/glog"
 	"net"
+	"strings"
 )
 
 type Docker struct {
@@ -26,6 +27,9 @@ type Container struct {
 	Id      string `json:"id"`
 	Ip      string `json:"ip"`
 	Image   string `json:"image"`
+	ImageId string `json:"image_id"`
+
+	Name    string `json:"name"`
 	Command string `json:"command"`
 	Ports   []Port `json:"ports"`
 	Network _docker.NetworkSettings
@@ -60,37 +64,26 @@ func NewClient(endpoint string) (c *Docker, err error) {
 	return c, err
 }
 
-func (c *Container) Inspect() error {
-	cc, err := c.docker.InspectContainer(c.Id)
-	if err != nil {
-		return err
-	}
-	c.Ip = cc.NetworkSettings.IPAddress
-	c.Network = *cc.NetworkSettings
-	return nil
-}
-
-func get_ports(list []_docker.APIPort) []Port {
-	out := make([]Port, len(list))
-	for i, p := range list {
-		out[i] = Port{
-			ContainerPort: p.PrivatePort,
-			HostPort:      p.PublicPort,
-			Type:          p.Type,
-			AcceptIP:      p.IP,
-		}
-	}
-	return out
-}
-
 func (c *Docker) ListContainers() ([]*Container, error) {
 	return c.FindContainers(nil)
 }
 
 func (c *Docker) FindContainersByName(name string) ([]*Container, error) {
-	return c.FindContainers(map[string][]string{
+	found := make([]*Container, 0)
+	l, err := c.FindContainers(map[string][]string{
 		"name": []string{name},
 	})
+	if err != nil {
+		return nil, err
+	}
+	for _, cc := range l {
+		err := cc.Inspect() // populates the Name, etc.
+		glog.V(100).Infoln("Inspect container", *cc, "Err=", err)
+		if err == nil && cc.Name == name {
+			found = append(found, cc)
+		}
+	}
+	return found, nil
 }
 
 func (c *Docker) FindContainers(filter map[string][]string) ([]*Container, error) {
@@ -108,7 +101,7 @@ func (c *Docker) FindContainers(filter map[string][]string) ([]*Container, error
 	out := []*Container{}
 	for _, cc := range l {
 
-		glog.Infoln("Container==>", cc.Ports)
+		glog.V(100).Infoln("Matching", options, "Container==>", cc.Ports)
 		out = append(out, &Container{
 			Id:      cc.ID,
 			Image:   cc.Image,
@@ -118,6 +111,92 @@ func (c *Docker) FindContainers(filter map[string][]string) ([]*Container, error
 		})
 	}
 	return out, nil
+}
+
+type Action int
+
+const (
+	Start Action = iota
+	Stop
+	Remove
+)
+
+// Docker event status are create -> start -> die -> stop for a container then destroy for docker -rm
+var verbs map[string]Action = map[string]Action{
+	"start":   Start,
+	"stop":    Stop,
+	"destroy": Remove,
+}
+
+func (c *Docker) WatchContainer(notify func(Action, *Container)) (chan<- bool, error) {
+	stop := make(chan bool, 1)
+	events := make(chan *_docker.APIEvents)
+	err := c.docker.AddEventListener(events)
+	if err != nil {
+		return nil, err
+	}
+	go func() {
+		for {
+			select {
+			case event := <-events:
+				glog.V(100).Infoln("Docker event:", event)
+
+				action, has := verbs[event.Status]
+				if !has {
+					continue
+				}
+
+				container := &Container{Id: event.ID, Image: event.From, docker: c.docker}
+				if action != Remove {
+					err := container.Inspect()
+					if err != nil {
+						glog.Warningln("Error inspecting container", event.ID)
+						continue
+					}
+				}
+
+				if watch != nil {
+					notify(action, container)
+				}
+
+			case done := <-stop:
+				if done {
+					glog.Infoln("Watch terminated.")
+					return
+				}
+			}
+		}
+	}()
+	return stop, nil
+}
+
+func (c *Container) Inspect() error {
+	cc, err := c.docker.InspectContainer(c.Id)
+	if err != nil {
+		return err
+	}
+	c.Name = cc.Name[1:] // there's this funny '/name' thing going on with how docker names containers
+	c.ImageId = cc.Image
+	c.Command = cc.Path + " " + strings.Join(cc.Args, " ")
+	if cc.NetworkSettings != nil {
+		c.Ip = cc.NetworkSettings.IPAddress
+		c.Network = *cc.NetworkSettings
+		c.Ports = get_ports(cc.NetworkSettings.PortMappingAPI())
+	}
+	return nil
+}
+
+func get_ports(list []_docker.APIPort) []Port {
+	out := make([]Port, len(list))
+	for i, p := range list {
+		out[i] = Port{
+			ContainerPort: p.PrivatePort,
+			HostPort:      p.PublicPort,
+			Type:          p.Type,
+			AcceptIP:      p.IP,
+		}
+	}
+	return out
 }
 
 // Note that this depends on the context in which it is run.

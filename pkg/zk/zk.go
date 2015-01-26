@@ -265,25 +265,25 @@ func (this *Node) Get() error {
 }
 
 func run_watch(f func(Event), event_chan <-chan zk.Event) (chan<- bool, error) {
-	if f != nil {
-		stop := make(chan bool, 1)
-		go func() {
-			// Note ZK only fires once and after that we need to reschedule.
-			// With this api this may mean we get a new event channel.
-			// Therefore, there's no point looping in here for more than 1 event.
-			select {
-			case event := <-event_chan:
-				f(Event(event))
-			case b := <-stop:
-				if b {
-					glog.Infoln("Watch terminated")
-					return
-				}
-			}
-		}()
-		return stop, nil
+	if f == nil {
+		return nil, nil
 	}
-	return nil, nil
+	stop := make(chan bool, 1)
+	go func() {
+		// Note ZK only fires once and after that we need to reschedule.
+		// With this api this may mean we get a new event channel.
+		// Therefore, there's no point looping in here for more than 1 event.
+		select {
+		case event := <-event_chan:
+			f(Event(event))
+		case b := <-stop:
+			if b {
+				glog.Infoln("Watch terminated")
+				return
+			}
+		}
+	}()
+	return stop, nil
 }
 
 func (this *Node) Watch(f func(Event)) (chan<- bool, error) {
