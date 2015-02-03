@@ -1,8 +1,11 @@
 package docker
 
 import (
+	"bufio"
+	"bytes"
 	_docker "github.com/fsouza/go-dockerclient"
 	"github.com/golang/glog"
+	"io"
 	"net"
 	"strings"
 )
@@ -34,7 +37,13 @@ type Container struct {
 	Ports   []Port `json:"ports"`
 	Network _docker.NetworkSettings
 
+	DockerData *_docker.Container `json:"docker_data"`
+
 	docker *_docker.Client
+}
+
+type AuthIdentity struct {
+	_docker.AuthConfiguration
 }
 
 type Image struct {
@@ -42,13 +51,12 @@ type Image struct {
 	Repository string `json:"repository"`
 	Tag        string `json:"tag"`
 }
-type PullImage struct {
-	_docker.PullImageOptions
-	_docker.AuthConfiguration
-}
 
-type StartContainer struct {
-	_docker.CreateContainerOptions
+type ContainerControl struct {
+	ContainerName string `json:"name"`
+	*_docker.Config
+
+	HostConfig *_docker.HostConfig `json:"host_config"`
 }
 
 // Endpoint and file paths
@@ -111,6 +119,77 @@ func (c *Docker) FindContainers(filter map[string][]string) ([]*Container, error
 		})
 	}
 	return out, nil
+}
+
+func (c *Docker) PullImage(auth *AuthIdentity, image *Image) (<-chan error, error) {
+	output_buff := bytes.NewBuffer(make([]byte, 1024*4))
+	output := bufio.NewWriter(output_buff)
+
+	err := c.docker.PullImage(_docker.PullImageOptions{
+		Repository:   image.Repository,
+		Registry:     image.Registry,
+		Tag:          image.Tag,
+		OutputStream: output,
+	}, auth.AuthConfiguration)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Since the api doesn't have a channel, all we can do is read from the input
+	// and then send a done signal when the input stream is exhausted.
+	stopped := make(chan error)
+	go func() {
+		for {
+			_, e := output_buff.ReadByte()
+			if e == io.EOF {
+				stopped <- nil
+				return
+			} else {
+				stopped <- e
+				return
+			}
+		}
+	}()
+	return stopped, err
+}
+
+func (c *Docker) StartDaemon(auth *AuthIdentity, ct *ContainerControl) (*Container, error) {
+	return c.StartContainer(auth, ct, true)
+}
+
+func (c *Docker) StartContainer(auth *AuthIdentity, ct *ContainerControl, daemon bool) (*Container, error) {
+	opts := _docker.CreateContainerOptions{
+		Name:       ct.ContainerName,
+		Config:     ct.Config,
+		HostConfig: ct.HostConfig,
+	}
+
+	// Detach mode (-d option in docker run)
+	if daemon {
+		opts.Config.AttachStdin = false
+		opts.Config.AttachStdout = false
+		opts.Config.AttachStderr = false
+		opts.Config.StdinOnce = false
+	}
+
+	cc, err := c.docker.CreateContainer(opts)
+	if err != nil {
+		return nil, err
+	}
+	err = c.docker.StartContainer(cc.ID, ct.HostConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	container := &Container{
+		Id:     cc.ID,
+		Image:  ct.Image,
+		docker: c.docker,
+	}
+
+	err = container.Inspect()
+	return container, err
 }
 
 type Action int
@@ -183,6 +262,7 @@ func (c *Container) Inspect() error {
 		c.Network = *cc.NetworkSettings
 		c.Ports = get_ports(cc.NetworkSettings.PortMappingAPI())
 	}
+	c.DockerData = cc
 	return nil
 }
 

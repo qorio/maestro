@@ -145,6 +145,7 @@ func (this *zookeeper) KeepWatch(path string, f func(Event) bool) (chan<- bool, 
 	}
 	stop := make(chan bool, 1)
 	go func() {
+		glog.Infoln("Starting watch on:", path)
 		for {
 			select {
 			case event := <-event_chan:
