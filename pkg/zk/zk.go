@@ -14,6 +14,19 @@ var (
 	ErrNotExist     = errors.New("zk-not-exist")
 )
 
+const (
+	StateUnknown           = zk.StateUnknown
+	StateDisconnected      = zk.StateDisconnected
+	StateConnecting        = zk.StateConnecting
+	StateSyncConnected     = zk.StateSyncConnected
+	StateAuthFailed        = zk.StateAuthFailed
+	StateConnectedReadOnly = zk.StateConnectedReadOnly
+	StateSaslAuthenticated = zk.StateSaslAuthenticated
+	StateExpired           = zk.StateExpired
+	StateConnected         = zk.StateConnected
+	StateHasSession        = zk.StateHasSession
+)
+
 type Event zk.Event
 
 type ZK interface {
