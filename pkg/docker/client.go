@@ -198,6 +198,7 @@ const (
 	Start Action = iota
 	Stop
 	Remove
+	Die
 )
 
 // Docker event status are create -> start -> die -> stop for a container then destroy for docker -rm
@@ -205,9 +206,14 @@ var verbs map[string]Action = map[string]Action{
 	"start":   Start,
 	"stop":    Stop,
 	"destroy": Remove,
+	"die":     Die,
 }
 
 func (c *Docker) WatchContainer(notify func(Action, *Container)) (chan<- bool, error) {
+	return c.WatchContainerMatching(func(c *Container) bool { return true }, notify)
+}
+
+func (c *Docker) WatchContainerMatching(accept func(*Container) bool, notify func(Action, *Container)) (chan<- bool, error) {
 	stop := make(chan bool, 1)
 	events := make(chan *_docker.APIEvents)
 	err := c.docker.AddEventListener(events)
@@ -234,7 +240,7 @@ func (c *Docker) WatchContainer(notify func(Action, *Container)) (chan<- bool, e
 					}
 				}
 
-				if watch != nil {
+				if watch != nil && accept(container) {
 					notify(action, container)
 				}
 
