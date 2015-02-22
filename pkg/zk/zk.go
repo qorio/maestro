@@ -452,6 +452,31 @@ func (this *Node) FilterChildrenRecursive(filter func(*Node) bool) ([]*Node, err
 	return list, nil
 }
 
+func (this *Node) VisitChildrenRecursive(accept func(*Node) bool) ([]*Node, error) {
+	if err := this.zk.check(); err != nil {
+		return nil, err
+	}
+	list := make([]*Node, 0)
+
+	children, err := this.Children()
+	if err != nil {
+		return nil, err
+	}
+
+	this.Leaf = len(children) == 0
+	for _, n := range children {
+		l, err := n.VisitChildrenRecursive(accept)
+		if err != nil {
+			return nil, err
+		}
+		list = append_node_slices(list, l)
+		if accept == nil || (accept != nil && accept(n)) {
+			list = append(list, n)
+		}
+	}
+	return list, nil
+}
+
 func (this *Node) Delete() error {
 	if err := this.zk.check(); err != nil {
 		return err
