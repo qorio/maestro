@@ -110,13 +110,15 @@ func (c *Docker) FindContainers(filter map[string][]string) ([]*Container, error
 	for _, cc := range l {
 
 		glog.V(100).Infoln("Matching", options, "Container==>", cc.Ports)
-		out = append(out, &Container{
+		c := &Container{
 			Id:      cc.ID,
 			Image:   cc.Image,
 			Command: cc.Command,
 			Ports:   get_ports(cc.Ports),
 			docker:  c.docker,
-		})
+		}
+		c.Inspect()
+		out = append(out, c)
 	}
 	return out, nil
 }
