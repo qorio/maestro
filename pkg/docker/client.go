@@ -18,6 +18,9 @@ type Docker struct {
 	Ca   string
 
 	docker *_docker.Client
+
+	ContainerCreated func(*Container)
+	ContainerStarted func(*Container)
 }
 
 type Port struct {
@@ -26,6 +29,7 @@ type Port struct {
 	Type          string `json:"protocol"`
 	AcceptIP      string `json:"accepts_ip"`
 }
+
 type Container struct {
 	Id      string `json:"id"`
 	Ip      string `json:"ip"`
@@ -179,15 +183,24 @@ func (c *Docker) StartContainer(auth *AuthIdentity, ct *ContainerControl, daemon
 	if err != nil {
 		return nil, err
 	}
-	err = c.docker.StartContainer(cc.ID, ct.HostConfig)
-	if err != nil {
-		return nil, err
-	}
 
 	container := &Container{
 		Id:     cc.ID,
 		Image:  ct.Image,
 		docker: c.docker,
+	}
+
+	if c.ContainerCreated != nil {
+		c.ContainerCreated(container)
+	}
+
+	err = c.docker.StartContainer(cc.ID, ct.HostConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.ContainerStarted != nil {
+		c.ContainerStarted(container)
 	}
 
 	err = container.Inspect()
@@ -197,7 +210,8 @@ func (c *Docker) StartContainer(auth *AuthIdentity, ct *ContainerControl, daemon
 type Action int
 
 const (
-	Start Action = iota
+	Create Action = iota
+	Start
 	Stop
 	Remove
 	Die
@@ -205,6 +219,7 @@ const (
 
 // Docker event status are create -> start -> die -> stop for a container then destroy for docker -rm
 var verbs map[string]Action = map[string]Action{
+	"create":  Create,
 	"start":   Start,
 	"stop":    Stop,
 	"destroy": Remove,
