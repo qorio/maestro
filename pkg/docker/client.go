@@ -57,10 +57,10 @@ type Image struct {
 }
 
 type ContainerControl struct {
-	ContainerName string `json:"name"`
 	*_docker.Config
 
-	HostConfig *_docker.HostConfig `json:"host_config"`
+	HostConfig    *_docker.HostConfig `json:"host_config"`
+	ContainerName string              `json:"name"`
 }
 
 // Endpoint and file paths
