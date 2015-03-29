@@ -14,9 +14,9 @@ import (
 )
 
 type Config struct {
-	User     string
-	Project  string
-	ApiToken string
+	User     string `json:"user"`
+	Project  string `json:"project"`
+	ApiToken string `json:"token"`
 }
 
 type BuildArtifact struct {
