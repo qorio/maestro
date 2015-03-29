@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 )
 
 type Docker struct {
@@ -205,6 +206,18 @@ func (c *Docker) StartContainer(auth *AuthIdentity, ct *ContainerControl, daemon
 
 	err = container.Inspect()
 	return container, err
+}
+
+func (c *Docker) StopContainer(auth *AuthIdentity, id string, timeout time.Duration) error {
+	return c.docker.StopContainer(id, uint(timeout.Seconds()))
+}
+
+func (c *Docker) RemoveContainer(auth *AuthIdentity, id string, removeVolumes, force bool) error {
+	return c.docker.RemoveContainer(_docker.RemoveContainerOptions{
+		ID:            id,
+		RemoveVolumes: removeVolumes,
+		Force:         force,
+	})
 }
 
 type Action int
