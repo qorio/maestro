@@ -63,6 +63,10 @@ singApp.config(function($stateProvider, $urlRouterProvider){
             url: '/login',
             templateUrl: 'views/login.html'
         })
+        .state('create_account', {
+            url: '/create_account',
+            templateUrl: 'views/create_account.html'
+        })
         .state('error', {
             url: '/error',
             templateUrl: 'views/error.html'
