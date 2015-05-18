@@ -60,8 +60,10 @@ type Image struct {
 type ContainerControl struct {
 	*_docker.Config
 
+	// If false, the container starts up in daemon mode (as a service) - default
+	RunOnce       bool                `json:"run_once,omitempty"`
 	HostConfig    *_docker.HostConfig `json:"host_config"`
-	ContainerName string              `json:"name"`
+	ContainerName string              `json:"name,omitempty"`
 }
 
 // Endpoint and file paths
@@ -161,17 +163,14 @@ func (c *Docker) PullImage(auth *AuthIdentity, image *Image) (<-chan error, erro
 	return stopped, err
 }
 
-func (c *Docker) StartDaemon(auth *AuthIdentity, ct *ContainerControl) (*Container, error) {
-	return c.StartContainer(auth, ct, true)
-}
-
-func (c *Docker) StartContainer(auth *AuthIdentity, ct *ContainerControl, daemon bool) (*Container, error) {
+func (c *Docker) StartContainer(auth *AuthIdentity, ct *ContainerControl) (*Container, error) {
 	opts := _docker.CreateContainerOptions{
 		Name:       ct.ContainerName,
 		Config:     ct.Config,
 		HostConfig: ct.HostConfig,
 	}
 
+	daemon := !ct.RunOnce
 	// Detach mode (-d option in docker run)
 	if daemon {
 		opts.Config.AttachStdin = false
