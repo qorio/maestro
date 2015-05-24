@@ -239,10 +239,10 @@ var verbs map[string]Action = map[string]Action{
 }
 
 func (c *Docker) WatchContainer(notify func(Action, *Container)) (chan<- bool, error) {
-	return c.WatchContainerMatching(func(c *Container) bool { return true }, notify)
+	return c.WatchContainerMatching(func(Action, *Container) bool { return true }, notify)
 }
 
-func (c *Docker) WatchContainerMatching(accept func(*Container) bool, notify func(Action, *Container)) (chan<- bool, error) {
+func (c *Docker) WatchContainerMatching(accept func(Action, *Container) bool, notify func(Action, *Container)) (chan<- bool, error) {
 	stop := make(chan bool, 1)
 	events := make(chan *_docker.APIEvents)
 	err := c.docker.AddEventListener(events)
@@ -269,7 +269,7 @@ func (c *Docker) WatchContainerMatching(accept func(*Container) bool, notify fun
 					}
 				}
 
-				if watch != nil && accept(container) {
+				if watch != nil && accept(action, container) {
 					notify(action, container)
 				}
 
