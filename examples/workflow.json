@@ -1,0 +1,56 @@
+{
+    "deployment" : {
+	"description" : "a deployment orchestration",
+	"top" : "/{{.Domain}}/deployment/current",
+	"input" : "/{{.Domain}}/deployment/{{.Id}}/input",
+	"output" : "/{{.Domain}}/deployment/{{.Id}}/output",
+	"tasks" : {
+	    "db-migrate": {
+		"start" : "/{{.Domain}}/deployment/{{.Id}}/db-migrate",
+		"condition" : {
+		    "path" : "/{{.Domain}}/passport-db-master/containers",
+		    "min_children" : 1,
+		    "timeout" : 300
+		}
+		"scheduler" : "passport-db-migrate",
+		"workers" : "exclusive",
+		"success" : "/{{.Domain}}/deployment/{{.Id}}/db-seed",
+		"error" : "/{{.Domain}}/deployment/{{.Id}}/exception"
+	    },
+
+	    "db-seed": {
+		"start" : "/{{.Domain}}/deployment/{{.Id}}/db-seed",
+		"condition" : {
+		    "path" : "/{{.Domain}}/passport-db-master/containers",
+		    "min_children" : 1,
+		    "timeout" : 300
+		}
+		"scheduler" : "passport-db-seed",
+		"workers" : "exclusive",
+		"success" : "/{{.Domain}}/deployment/{{.Id}}/run-containers",
+		"error" : "/{{.Domain}}/deployment/{{.Id}}/exception"
+	    },
+
+	    "run-containers" : {
+		"start" : "/{{.Domain}}/deployment/{{.Id}}/run-containers",
+		"scheduler" : "passport",
+		"workers" : "scheduler",
+		"success" : "/{{.Domain}}/deployment/{{.Id}}/proxy-reload",
+		"error" : "/{{.Domain}}/deployment/{{.Id}}/exception"
+	    },
+
+	    "proxy-reload" : {
+		"start" : "/{{.Domain}}/deployment/{{.Id}}/proxy-reload",
+		"condition" : {
+		    "path" : "/{{.Domain}}/passport/{{.Version}}/containers",
+		    "min_children" : 10,
+		    "timeout" : 300
+		},
+		"scheduler" : "passport-proxy-reload",
+		"workers" : "exclusive",
+		"success" : null,
+		"error" : "/{{.Domain}}/deployment/{{.Id}}/exception"
+	    }
+	}
+    }
+}
