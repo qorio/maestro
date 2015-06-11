@@ -12,8 +12,8 @@
 		},
 		{
 			"ImportPath": "code.google.com/p/go.crypto/ssh",
-			"Comment": "null-229",
-			"Rev": "841f0a993ddddfbf3648cac422c219d0752b280a"
+			"Comment": "null-236",
+			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.net/websocket",
@@ -27,20 +27,20 @@
 		},
 		{
 			"ImportPath": "github.com/deckarep/golang-set",
-			"Comment": "v1-23-gb5afabd",
-			"Rev": "b5afabde9c4a5fa00d0559a11ae72a93991be7d2"
+			"Comment": "v1-26-gef32fa3",
+			"Rev": "ef32fa3046d9f249d399f98ebaf9be944430fd1d"
 		},
 		{
 			"ImportPath": "github.com/fsouza/go-dockerclient",
-			"Rev": "5da2a37ecfb5bcb921a36dbc18e912c3235f139a"
+			"Rev": "b0f4fa94c14794e30cf3b9176e5dc4725d9552ed"
 		},
 		{
 			"ImportPath": "github.com/golang/glog",
-			"Rev": "d1c4472bf2efd3826f2b5bdcc02d8416798d678c"
+			"Rev": "44145f04b68cf362d9c4df2182967c2275eaefed"
 		},
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
-			"Rev": "e59e565ab27039f8e13527b108788c53642a1fa3"
+			"Rev": "d0e0d8e11f318e000a8cc434616d69e329edc374"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ssh",
