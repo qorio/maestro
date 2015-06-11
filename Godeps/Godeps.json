@@ -1,59 +1,34 @@
 {
 	"ImportPath": "github.com/qorio/maestro",
-	"GoVersion": "go1.3.3",
+	"GoVersion": "go1.4.2",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/go-uuid/uuid",
+			"Comment": "null-15",
+			"Rev": "35bc42037350f0078e3c974c6ea690f1926603ab"
+		},
 		{
 			"ImportPath": "code.google.com/p/go.crypto/ssh",
 			"Comment": "null-229",
 			"Rev": "841f0a993ddddfbf3648cac422c219d0752b280a"
 		},
 		{
-			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.6.4-6-g539d4dc",
-			"Rev": "539d4dc034c079a7188b5d4ca9650632d73c66e8"
+			"ImportPath": "code.google.com/p/go.net/websocket",
+			"Comment": "null-240",
+			"Rev": "937a34c9de13c766c814510f76bca091dee06028"
+		},
+		{
+			"ImportPath": "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git",
+			"Comment": "v0.9.1-8-g1d65364",
+			"Rev": "1d6536402dac4b2528bc23f08ecc318c295c320a"
 		},
 		{
 			"ImportPath": "github.com/deckarep/golang-set",
 			"Comment": "v1-23-gb5afabd",
 			"Rev": "b5afabde9c4a5fa00d0559a11ae72a93991be7d2"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/archive",
-			"Comment": "v1.4.1-687-g8d5774e",
-			"Rev": "8d5774e60bfcf4ec3fdd571f73424ef1adc586cb"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/fileutils",
-			"Comment": "v1.4.1-687-g8d5774e",
-			"Rev": "8d5774e60bfcf4ec3fdd571f73424ef1adc586cb"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/ioutils",
-			"Comment": "v1.4.1-687-g8d5774e",
-			"Rev": "8d5774e60bfcf4ec3fdd571f73424ef1adc586cb"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/pools",
-			"Comment": "v1.4.1-687-g8d5774e",
-			"Rev": "8d5774e60bfcf4ec3fdd571f73424ef1adc586cb"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/promise",
-			"Comment": "v1.4.1-687-g8d5774e",
-			"Rev": "8d5774e60bfcf4ec3fdd571f73424ef1adc586cb"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/system",
-			"Comment": "v1.4.1-687-g8d5774e",
-			"Rev": "8d5774e60bfcf4ec3fdd571f73424ef1adc586cb"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/vendor/src/code.google.com/p/go/src/pkg/archive/tar",
-			"Comment": "v1.4.1-687-g8d5774e",
-			"Rev": "8d5774e60bfcf4ec3fdd571f73424ef1adc586cb"
 		},
 		{
 			"ImportPath": "github.com/fsouza/go-dockerclient",
@@ -66,6 +41,10 @@
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
 			"Rev": "e59e565ab27039f8e13527b108788c53642a1fa3"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/ssh",
+			"Rev": "c84e1f8e3a7e322d497cd16c0e8a13c7e127baf3"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
