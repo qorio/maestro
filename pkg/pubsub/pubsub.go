@@ -30,3 +30,21 @@ type PubSub interface {
 	Subscriber
 	Close()
 }
+
+type writer struct {
+	pub   Publisher
+	topic Topic
+}
+
+func AsWriter(topic Topic, pub Publisher) *writer {
+	return &writer{
+		topic: topic,
+		pub:   pub,
+	}
+}
+
+func (this *writer) Write(p []byte) (n int, err error) {
+	n = len(p)
+	this.pub.Publish(this.topic, p)
+	return n, nil
+}
