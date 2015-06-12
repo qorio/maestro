@@ -6,6 +6,7 @@ import (
 )
 
 type Path string
+type Topic string
 
 type Orchestration struct {
 	Name        string `json:"name,omitempty"`
@@ -13,7 +14,7 @@ type Orchestration struct {
 	Input       Path   `json:"input,omitempty"`
 	Output      Path   `json:"output,omitempty"`
 
-	Tasks map[TaskName]Task `json:"tasks" yaml:"tasks"`
+	Tasks map[TaskName]Task `json:"tasks"`
 }
 
 type TaskName string
@@ -23,6 +24,14 @@ type Task struct {
 	WorkerPolicy *WorkerPolicy `json:"workers,omitempty"`
 	Success      Path          `json:"success,omitempty"`
 	Error        Path          `json:"error,omitempty"`
+
+	// Paths for storing input/output
+	Input  *Path `json:"input,omitempty"`
+	Output *Path `json:"output,omitempty"`
+
+	// Topics (e.g. mqtt://aws-cli/124/stdout)
+	Stdout *Topic `json:"stdout_topic,omitempty"`
+	Stderr *Topic `json:"stderr_topic,omitempty"`
 
 	Scheduler Reference `json:"scheduler,omitempty"`
 }
