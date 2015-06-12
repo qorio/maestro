@@ -152,20 +152,23 @@ func (this *task) Success(output interface{}) error {
 	if this.done {
 		return ErrStopped
 	}
+
+	value, err := json.Marshal(output)
+	if err != nil {
+		return err
+	}
+	err = zk.CreateOrSetBytes(this.zk, this.Task.Success, value)
+	if err != nil {
+		return err
+	}
+
+	// copy the data over
 	if this.Task.Output != nil {
-		value, err := json.Marshal(output)
-		if err != nil {
-			return err
-		}
-		err = zk.CreateOrSet(this.zk, *this.Task.Output, string(value))
+		err = zk.CreateOrSetBytes(this.zk, *this.Task.Output, value)
 		if err != nil {
 			return err
 		}
 		this.Log("Success", "Result written to", this.Task.Output.Path())
-	}
-	err := zk.CreateOrSet(this.zk, this.Task.Success, time.Now().Path())
-	if err != nil {
-		return err
 	}
 
 	now := time.Now()

@@ -30,3 +30,19 @@ func (suite *PubSubTests) TestTopic(c *C) {
 	c.Assert(t.Path(), Equals, "/foo/bar")
 
 }
+
+func (suite *PubSubTests) TestBroker(c *C) {
+
+	var b Broker
+	b = Broker("mqtt://localhost:1281/foo")
+	c.Assert(b.Valid(), Equals, false)
+
+	b = Broker("http://localhost:1281")
+	c.Assert(b.Valid(), Equals, false)
+
+	b = Broker("mqtt://localhost:1281")
+	c.Assert(b.Valid(), Equals, true)
+
+	t := b.Topic("/this/is/topic")
+	c.Assert(t.Path(), Equals, "/this/is/topic")
+}

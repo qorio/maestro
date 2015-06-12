@@ -7,12 +7,38 @@ import (
 )
 
 const (
-	TopicSyntax = "(?P<protocol>mqtt|mqtts|kfka|kfkas)://(?P<host>[a-zA-Z0-9]+(?P<port>:[0-9]+))*(?P<path>/.*)"
+	TopicSyntax  = "(?P<protocol>mqtt|mqtts|kfka|kfkas)://(?P<host>[a-zA-Z0-9]+(?P<port>:[0-9]+))*(?P<path>/.*)"
+	BrokerSyntax = "(?P<protocol>mqtt|mqtts|kfka|kfkas)://(?P<host>[a-zA-Z0-9]+(?P<port>:[0-9]+))*$"
 )
 
-var TopicRegex = regexp.MustCompile(TopicSyntax)
+var (
+	TopicRegex  = regexp.MustCompile(TopicSyntax)
+	BrokerRegex = regexp.MustCompile(BrokerSyntax)
+)
+
+type Broker string
+
+func (b Broker) Valid() bool {
+	return BrokerRegex.MatchString(string(b))
+}
+
+func (b Broker) Protocol() string {
+	return BrokerRegex.ReplaceAllString(string(b), "${protocol}")
+}
+
+func (b Broker) HostPort() string {
+	return BrokerRegex.ReplaceAllString(string(b), "${host}:${port}")
+}
+
+func (b Broker) Topic(path string) Topic {
+	return Topic(string(b) + path)
+}
 
 type Topic string
+
+func (t Topic) Broker() Broker {
+	return Broker(BrokerRegex.ReplaceAllString(string(t), "${protocol}://${host}:${port}"))
+}
 
 func (t Topic) Valid() bool {
 	return TopicRegex.MatchString(string(t))
