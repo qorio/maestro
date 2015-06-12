@@ -1,6 +1,8 @@
 package pubsub
 
 import (
+	"bytes"
+	"io"
 	"strings"
 )
 
@@ -36,7 +38,7 @@ type writer struct {
 	topic Topic
 }
 
-func AsWriter(topic Topic, pub Publisher) *writer {
+func GetWriter(topic Topic, pub Publisher) io.Writer {
 	return &writer{
 		topic: topic,
 		pub:   pub,
@@ -47,4 +49,40 @@ func (this *writer) Write(p []byte) (n int, err error) {
 	n = len(p)
 	this.pub.Publish(this.topic, p)
 	return n, nil
+}
+
+type reader struct {
+	sub   Subscriber
+	topic Topic
+	read  <-chan []byte
+	buff  bytes.Buffer
+}
+
+func GetReader(topic Topic, sub Subscriber) io.Reader {
+	read, err := sub.Subscribe(topic)
+	if err != nil {
+		return nil
+	}
+
+	r := reader{
+		topic: topic,
+		sub:   sub,
+		read:  read,
+	}
+	go func() { r.loop() }()
+
+	return &r
+}
+
+func (this *reader) loop() {
+	for {
+		_, err := this.buff.Write(<-this.read)
+		if err != nil {
+			break
+		}
+	}
+}
+
+func (this *reader) Read(p []byte) (n int, err error) {
+	return this.buff.Read(p)
 }
