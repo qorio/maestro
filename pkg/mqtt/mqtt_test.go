@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"fmt"
+	"github.com/qorio/maestro/pkg/pubsub"
 	. "gopkg.in/check.v1"
 	"testing"
 	"time"
@@ -15,20 +16,25 @@ var _ = Suite(&MqttTests{})
 
 var (
 	local_endpoint = "iot.eclipse.org:1883" //"192.168.59.103:1883"
-	topic          = "/this-is-a-test"
+	topic          = pubsub.Topic("mqtt:///this-is-a-test")
 )
 
+func (suite *MqttTests) TestProtocolCheck(c *C) {
+	c.Assert(pubsub.Topic("foo://").String(), Equals, "")
+	c.Assert(pubsub.Topic("mqtt:///foo/bar").String(), Equals, "/foo/bar")
+	c.Assert(pubsub.Topic("mqtt:///test1").Protocol("mqtt"), Equals, true)
+}
+
 func (suite *MqttTests) TestConnectDisconnect(c *C) {
-	cl, err := Connect("test", local_endpoint, "/test1")
+	cl, err := Connect("test", local_endpoint)
 	c.Assert(err, Equals, nil)
 	c.Log("Got client=", cl)
-
 	cl.Close()
 }
 
 func (suite *MqttTests) TestPublishSubscribe1(c *C) {
 	total := 20
-	pub, err := Connect("publisher", local_endpoint, topic)
+	pub, err := Connect("publisher", local_endpoint)
 	c.Assert(err, Equals, nil)
 	c.Log("Got client=", pub)
 
@@ -37,7 +43,7 @@ func (suite *MqttTests) TestPublishSubscribe1(c *C) {
 	go func() {
 		for m := 0; ; m++ {
 			message := fmt.Sprintf("message-%d", m)
-			pub.Publish([]byte(message))
+			pub.Publish(topic, []byte(message))
 			if *count == total {
 				break
 			}
@@ -46,8 +52,8 @@ func (suite *MqttTests) TestPublishSubscribe1(c *C) {
 		c.Log("Done publishing")
 	}()
 
-	sub, err := Connect("subscriber", local_endpoint, topic)
-	receive, err := sub.Subscribe()
+	sub, err := Connect("subscriber", local_endpoint)
+	receive, err := sub.Subscribe(topic)
 	c.Assert(err, Equals, nil)
 
 	for {

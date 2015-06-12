@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"encoding/json"
+	. "github.com/qorio/maestro/pkg/registry"
 	. "gopkg.in/check.v1"
 	"testing"
 	"time"

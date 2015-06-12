@@ -3,7 +3,12 @@ package mqtt
 import (
 	"errors"
 	MQTT "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git"
+	"github.com/qorio/maestro/pkg/pubsub"
 	"time"
+)
+
+var (
+	ErrNotSupportedProtocol = errors.New("not-supported-protocol")
 )
 
 const (
@@ -16,19 +21,12 @@ type Client struct {
 	BrokerAddr       string        `json:"broker_addr"`
 	ClientId         string        `json:"client_id"`
 	QoS              byte          `json:"qos"` //MQTT.QoS
-	Topic            string        `json:"topic"`
 	PublishTimeout   time.Duration `json:"publish_timeout"`
 	SubscribeTimeout time.Duration `json:"subscribe_timeout"`
 	client           *MQTT.Client
 }
 
-func (this *Client) Write(p []byte) (n int, err error) {
-	n = len(p)
-	this.Publish(p)
-	return n, nil
-}
-
-func Connect(id, addr, topic string) (*Client, error) {
+func Connect(id, addr string) (pubsub.PubSub, error) {
 	opts := MQTT.NewClientOptions()
 	opts.AddBroker("tcp://" + addr)
 	opts.SetClientID(id)
@@ -43,14 +41,16 @@ func Connect(id, addr, topic string) (*Client, error) {
 		BrokerAddr:       addr,
 		ClientId:         id,
 		client:           c,
-		Topic:            topic,
 		PublishTimeout:   time.Second * 1,
 		SubscribeTimeout: time.Second * 1,
 	}, nil
 }
 
-func (this *Client) Publish(message []byte) error {
-	token := this.client.Publish(this.Topic, this.QoS, false, message)
+func (this *Client) Publish(topic pubsub.Topic, message []byte) error {
+	if !topic.Protocol("mqtt") {
+		return ErrNotSupportedProtocol
+	}
+	token := this.client.Publish(topic.String(), this.QoS, false, message)
 	token.WaitTimeout(this.PublishTimeout)
 	if token.Error() != nil {
 		return token.Error()
@@ -58,9 +58,12 @@ func (this *Client) Publish(message []byte) error {
 	return nil
 }
 
-func (this *Client) Subscribe() (<-chan []byte, error) {
+func (this *Client) Subscribe(topic pubsub.Topic) (<-chan []byte, error) {
+	if !topic.Protocol("mqtt") {
+		return nil, ErrNotSupportedProtocol
+	}
 	out := make(chan []byte)
-	token := this.client.Subscribe(this.Topic, this.QoS, func(cl *MQTT.Client, m MQTT.Message) {
+	token := this.client.Subscribe(topic.String(), this.QoS, func(cl *MQTT.Client, m MQTT.Message) {
 		out <- m.Payload()
 	})
 	token.WaitTimeout(this.SubscribeTimeout)

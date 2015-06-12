@@ -2,36 +2,34 @@ package workflow
 
 import (
 	"fmt"
+	"github.com/qorio/maestro/pkg/pubsub"
+	"github.com/qorio/maestro/pkg/registry"
 	"time"
 )
-
-type Path string
-type Topic string
 
 type Orchestration struct {
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
-	Input       Path   `json:"input,omitempty"`
-	Output      Path   `json:"output,omitempty"`
 
 	Tasks map[TaskName]Task `json:"tasks"`
 }
 
 type TaskName string
 type Task struct {
-	StartTrigger Path          `json:"start,omitempty"`
+	StartTrigger registry.Path `json:"start,omitempty"`
 	Condition    *Condition    `json:"condition,omitempty"`
 	WorkerPolicy *WorkerPolicy `json:"workers,omitempty"`
-	Success      Path          `json:"success,omitempty"`
-	Error        Path          `json:"error,omitempty"`
+	Success      registry.Path `json:"success,omitempty"`
+	Error        registry.Path `json:"error,omitempty"`
+	Status       pubsub.Topic  `json:"status_topic,omitempty"`
 
-	// Paths for storing input/output
-	Input  *Path `json:"input,omitempty"`
-	Output *Path `json:"output,omitempty"`
+	// registry.Paths for storing input/output
+	Input  *registry.Path `json:"input,omitempty"`
+	Output *registry.Path `json:"output,omitempty"`
 
 	// Topics (e.g. mqtt://aws-cli/124/stdout)
-	Stdout *Topic `json:"stdout_topic,omitempty"`
-	Stderr *Topic `json:"stderr_topic,omitempty"`
+	Stdout *pubsub.Topic `json:"stdout_topic,omitempty"`
+	Stderr *pubsub.Topic `json:"stderr_topic,omitempty"`
 
 	Scheduler Reference `json:"scheduler,omitempty"`
 }
@@ -44,10 +42,10 @@ type Reference string
 type Timeout time.Duration
 
 type Condition struct {
-	Timeout      *Timeout `json:"timeout,omitempty"`
-	PathExists   *Path    `json:"path_exists,omitempty"`
-	PathChildren *Path    `json:"path_children"`
-	MinChildren  int      `json:"min_children"`
+	Timeout     *Timeout       `json:"timeout,omitempty"`
+	Exists      *registry.Path `json:"exists,omitempty"`
+	Changes     *registry.Path `json:"changes,omitempty"`
+	MinChildren int            `json:"min_children"`
 }
 
 func (this *Timeout) UnmarshalJSON(s []byte) error {

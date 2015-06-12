@@ -1,5 +1,5 @@
 
-all: test-workflow
+all: test-pubsub
 
-test-workflow:
+test-pubsub:
 	${GODEP} go test ./... -check.vv -v ${TEST_ARGS}
