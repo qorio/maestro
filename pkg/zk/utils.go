@@ -1,6 +1,7 @@
 package zk
 
 import (
+	"encoding/json"
 	"github.com/golang/glog"
 	"github.com/qorio/maestro/pkg/registry"
 	"strconv"
@@ -27,7 +28,18 @@ func Resolve(zc ZK, key registry.Path, value string) (registry.Path, string, err
 	}
 }
 
-func GetValue(zc ZK, key registry.Path) *string {
+func GetObject(zc ZK, key registry.Path, value interface{}) error {
+	n, err := zc.Get(key.String())
+	switch {
+	case err == ErrNotExist:
+		return nil
+	case err != nil:
+		return nil
+	}
+	return json.Unmarshal(n.GetValue(), value)
+}
+
+func GetString(zc ZK, key registry.Path) *string {
 	n, err := zc.Get(key.String())
 	switch {
 	case err == ErrNotExist:
@@ -42,18 +54,48 @@ func GetValue(zc ZK, key registry.Path) *string {
 	return &v
 }
 
-func CreateOrSet(zc ZK, key registry.Path, value string) error {
+func GetBytes(zc ZK, key registry.Path) []byte {
 	n, err := zc.Get(key.String())
 	switch {
 	case err == ErrNotExist:
-		n, err = zc.Create(key.String(), []byte(value))
+		return nil
+	case err != nil:
+		return nil
+	}
+	return n.GetValue()
+}
+
+func CreateOrSet(zc ZK, key registry.Path, value interface{}) error {
+	switch value.(type) {
+	case string:
+		return CreateOrSetString(zc, key, value.(string))
+	case []byte:
+		return CreateOrSetBytes(zc, key, value.([]byte))
+	default:
+		serialized, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		return CreateOrSetBytes(zc, key, serialized)
+	}
+}
+
+func CreateOrSetString(zc ZK, key registry.Path, value string) error {
+	return CreateOrSetBytes(zc, key, []byte(value))
+}
+
+func CreateOrSetBytes(zc ZK, key registry.Path, value []byte) error {
+	n, err := zc.Get(key.String())
+	switch {
+	case err == ErrNotExist:
+		n, err = zc.Create(key.String(), value)
 		if err != nil {
 			return err
 		}
 	case err != nil:
 		return err
 	}
-	err = n.Set([]byte(value))
+	err = n.Set(value)
 	if err != nil {
 		return err
 	}

@@ -33,7 +33,7 @@ func (suite *TypesTests) TestUnmarshalMarshal(c *C) {
 	err := json.Unmarshal([]byte(input), t)
 	c.Assert(err, Equals, nil)
 
-	c.Assert(t.StartTrigger, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-migrate"))
+	c.Assert(*t.StartTrigger, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-migrate"))
 	c.Assert(*t.WorkerPolicy, Equals, WorkerPolicy("exclusive"))
 	c.Assert(t.Success, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-seed"))
 	c.Assert(t.Error, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/exception"))

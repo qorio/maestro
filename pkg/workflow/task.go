@@ -9,6 +9,7 @@ import (
 	"github.com/qorio/maestro/pkg/zk"
 	"runtime"
 	"strings"
+	"time"
 )
 
 var (
@@ -29,16 +30,26 @@ type task struct {
 	done bool
 }
 
-func (this *Task) Init(zk zk.ZK, pub pubsub.Publisher) (*task, error) {
-	if !this.Success.Valid() {
-		return nil, ErrBadConfig
+func (this *Task) Validate() error {
+	switch {
+	case !this.Info.Valid():
+		return ErrBadConfig
+	case !this.Success.Valid():
+		return ErrBadConfig
+	case !this.Error.Valid():
+		return ErrBadConfig
 	}
-	if !this.Error.Valid() {
-		return nil, ErrBadConfig
+	return nil
+}
+
+func (this *Task) Init(zkc zk.ZK, pub pubsub.Publisher) (*task, error) {
+	if err := this.Validate(); err != nil {
+		return nil, err
 	}
+
 	task := task{
 		Task: *this,
-		zk:   zk,
+		zk:   zkc,
 		pub:  pub,
 	}
 
@@ -52,6 +63,12 @@ func (this *Task) Init(zk zk.ZK, pub pubsub.Publisher) (*task, error) {
 		task.stderr = make(chan []byte)
 	}
 
+	now := time.Now()
+	task.Stat.Started = &now
+	err := zk.CreateOrSet(task.zk, task.Info, task.Stat)
+	if err != nil {
+		return nil, err
+	}
 	return &task, nil
 }
 
@@ -146,6 +163,18 @@ func (this *task) Success(output interface{}) error {
 		}
 		this.Log("Success", "Result written to", this.Task.Output.String())
 	}
+	err := zk.CreateOrSet(this.zk, this.Task.Success, time.Now().String())
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	this.Stat.Success = &now
+	err = zk.CreateOrSet(this.zk, this.Info, this.Stat)
+	if err != nil {
+		return err
+	}
+
 	this.Log("Success", "Completed")
 	this.Stop()
 	return nil
@@ -163,6 +192,14 @@ func (this *task) Error(error interface{}) error {
 	if err != nil {
 		return err
 	}
+
+	now := time.Now()
+	this.Stat.Error = &now
+	err = zk.CreateOrSet(this.zk, this.Info, this.Stat)
+	if err != nil {
+		return err
+	}
+
 	this.Log("Error", "Error written to", this.Task.Error.String())
 	this.Stop()
 	return nil

@@ -15,15 +15,18 @@ func (suite *PubSubTests) TestTopic(c *C) {
 
 	var t Topic
 	t = Topic("mqtt:///foo/bar")
-	c.Assert(t.Protocol("mqtt"), Equals, true)
-	c.Assert(t.String(), Equals, "/foo/bar")
+	c.Assert(t.Valid(), Equals, true)
+	c.Assert(t.Protocol(), Equals, "mqtt")
+	c.Assert(t.Path(), Equals, "/foo/bar")
 
 	t = Topic("mqtt://foo/bar")
-	c.Assert(t.Protocol("mqtt"), Equals, true)
-	c.Assert(t.String(), Equals, "foo/bar")
+	c.Assert(t.Valid(), Equals, false)
+	t = Topic("mqt://foo/bar")
+	c.Assert(t.Valid(), Equals, false)
+	t = Topic("mqt://")
+	c.Assert(t.Valid(), Equals, false)
 
-	t = Topic("mqtt://foo/bar")
-	c.Assert(t.Protocol("http"), Equals, false)
-	c.Assert(t.String(), Equals, "foo/bar")
+	t = Topic("mqtt:///foo/bar")
+	c.Assert(t.Path(), Equals, "/foo/bar")
 
 }

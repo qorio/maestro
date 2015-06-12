@@ -3,21 +3,36 @@ package pubsub
 import (
 	"bytes"
 	"io"
-	"strings"
+	"regexp"
 )
+
+const (
+	TopicSyntax = "(?P<protocol>mqtt|mqtts|kfka|kfkas)://(?P<host>[a-zA-Z0-9]+(?P<port>:[0-9]+))*(?P<path>/.*)"
+)
+
+var TopicRegex = regexp.MustCompile(TopicSyntax)
 
 type Topic string
 
-func (t Topic) String() string {
-	if i := strings.Index(string(t), "://"); i > 0 {
-		return string(t)[i+3:]
-	}
-	return string(t)
+func (t Topic) Valid() bool {
+	return TopicRegex.MatchString(string(t))
 }
 
-func (t Topic) Protocol(protocol string) bool {
-	return strings.Index(string(t), protocol+"://") >= 0
+func (t Topic) Protocol() string {
+	return TopicRegex.ReplaceAllString(string(t), "${protocol}")
 }
+
+func (t Topic) HostPort() string {
+	return TopicRegex.ReplaceAllString(string(t), "${host}:${port}")
+}
+
+func (t Topic) Path() string {
+	return TopicRegex.ReplaceAllString(string(t), "${path}")
+}
+
+// func (t Topic) String() string {
+//  	return string(t)
+// }
 
 type Publisher interface {
 	Publish(topic Topic, message []byte) error

@@ -16,12 +16,16 @@ type Orchestration struct {
 
 type TaskName string
 type Task struct {
-	StartTrigger registry.Path `json:"start,omitempty"`
-	Condition    *Condition    `json:"condition,omitempty"`
-	WorkerPolicy *WorkerPolicy `json:"workers,omitempty"`
-	Success      registry.Path `json:"success,omitempty"`
-	Error        registry.Path `json:"error,omitempty"`
-	Status       pubsub.Topic  `json:"status_topic,omitempty"`
+	// Required
+	Info    registry.Path `json:"info"`
+	Success registry.Path `json:"success"`
+	Error   registry.Path `json:"error"`
+	Status  pubsub.Topic  `json:"status_topic"`
+
+	// Triggering
+	StartTrigger *registry.Path `json:"start,omitempty"`
+	Condition    *Condition     `json:"condition,omitempty"`
+	WorkerPolicy *WorkerPolicy  `json:"workers,omitempty"`
 
 	// registry.Paths for storing input/output
 	Input  *registry.Path `json:"input,omitempty"`
@@ -32,6 +36,16 @@ type Task struct {
 	Stderr *pubsub.Topic `json:"stderr_topic,omitempty"`
 
 	Scheduler Reference `json:"scheduler,omitempty"`
+
+	Stat TaskStat
+}
+
+// Written to the Info path of the task
+type TaskStat struct {
+	Started   *time.Time `json:"started,omitempty"`
+	Triggered *time.Time `json:"triggered,omitempty"`
+	Success   *time.Time `json:"success,omitempty"`
+	Error     *time.Time `json:"error,omitempty"`
 }
 
 // { singleton | scheduler | barrier-N | hostname: }

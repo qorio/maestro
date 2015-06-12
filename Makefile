@@ -1,6 +1,10 @@
 .SILENT:
 .PHONY: _pwd_prompt dec enc
 
+all : $(SUBDIRS)
+$(SUBDIRS) :
+	$(MAKE) -C $@ all
+
 # 'private' task for echoing instructions
 _pwd_prompt: mk_dirs
 
@@ -34,6 +38,8 @@ encrypt: _pwd_prompt
 
 test-all:
 	${GODEP} go test ./pkg/... -v -check.vv
+
+
 TAG:=`git describe --abbrev=0 --tags`
 NOW:=`date -u +%Y-%m-%d_%H-%M-%S`
 LDFLAGS:=-X main.BUILD_VERSION $(TAG) -X main.BUILD_TIMESTAMP $(NOW)

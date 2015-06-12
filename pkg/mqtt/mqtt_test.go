@@ -19,12 +19,6 @@ var (
 	topic          = pubsub.Topic("mqtt:///this-is-a-test")
 )
 
-func (suite *MqttTests) TestProtocolCheck(c *C) {
-	c.Assert(pubsub.Topic("foo://").String(), Equals, "")
-	c.Assert(pubsub.Topic("mqtt:///foo/bar").String(), Equals, "/foo/bar")
-	c.Assert(pubsub.Topic("mqtt:///test1").Protocol("mqtt"), Equals, true)
-}
-
 func (suite *MqttTests) TestConnectDisconnect(c *C) {
 	cl, err := Connect("test", local_endpoint)
 	c.Assert(err, Equals, nil)
