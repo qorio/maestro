@@ -29,7 +29,7 @@ func Resolve(zc ZK, key registry.Path, value string) (registry.Path, string, err
 }
 
 func GetObject(zc ZK, key registry.Path, value interface{}) error {
-	n, err := zc.Get(key.String())
+	n, err := zc.Get(key.Path())
 	switch {
 	case err == ErrNotExist:
 		return nil
@@ -40,7 +40,7 @@ func GetObject(zc ZK, key registry.Path, value interface{}) error {
 }
 
 func GetString(zc ZK, key registry.Path) *string {
-	n, err := zc.Get(key.String())
+	n, err := zc.Get(key.Path())
 	switch {
 	case err == ErrNotExist:
 		return nil
@@ -55,7 +55,7 @@ func GetString(zc ZK, key registry.Path) *string {
 }
 
 func GetBytes(zc ZK, key registry.Path) []byte {
-	n, err := zc.Get(key.String())
+	n, err := zc.Get(key.Path())
 	switch {
 	case err == ErrNotExist:
 		return nil
@@ -85,10 +85,10 @@ func CreateOrSetString(zc ZK, key registry.Path, value string) error {
 }
 
 func CreateOrSetBytes(zc ZK, key registry.Path, value []byte) error {
-	n, err := zc.Get(key.String())
+	n, err := zc.Get(key.Path())
 	switch {
 	case err == ErrNotExist:
-		n, err = zc.Create(key.String(), value)
+		n, err = zc.Create(key.Path(), value)
 		if err != nil {
 			return err
 		}
@@ -103,10 +103,10 @@ func CreateOrSetBytes(zc ZK, key registry.Path, value []byte) error {
 }
 
 func Increment(zc ZK, key registry.Path, increment int) error {
-	n, err := zc.Get(key.String())
+	n, err := zc.Get(key.Path())
 	switch {
 	case err == ErrNotExist:
-		n, err = zc.Create(key.String(), []byte(strconv.Itoa(0)))
+		n, err = zc.Create(key.Path(), []byte(strconv.Itoa(0)))
 		if err != nil {
 			return err
 		}

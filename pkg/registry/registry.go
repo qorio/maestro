@@ -2,7 +2,7 @@ package registry
 
 type Path string
 
-func (p Path) String() string {
+func (p Path) Path() string {
 	return string(p)
 }
 
