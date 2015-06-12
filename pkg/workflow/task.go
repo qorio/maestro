@@ -131,7 +131,7 @@ func (this *task) Start() (stdout, stderr chan<- []byte, err error) {
 				this.pub.Publish(*this.Task.Stdout, m)
 			}
 		}()
-		this.Log("Sending stdout to", this.Task.Stdout.String())
+		this.Log("Sending stdout to", this.Task.Stdout.Path())
 	}
 	if this.stderr != nil {
 		go func() {
@@ -143,7 +143,7 @@ func (this *task) Start() (stdout, stderr chan<- []byte, err error) {
 				this.pub.Publish(*this.Task.Stderr, m)
 			}
 		}()
-		this.Log("Sending stderr to", this.Task.Stderr.String())
+		this.Log("Sending stderr to", this.Task.Stderr.Path())
 	}
 	return this.stdout, this.stderr, nil
 }
@@ -161,9 +161,9 @@ func (this *task) Success(output interface{}) error {
 		if err != nil {
 			return err
 		}
-		this.Log("Success", "Result written to", this.Task.Output.String())
+		this.Log("Success", "Result written to", this.Task.Output.Path())
 	}
-	err := zk.CreateOrSet(this.zk, this.Task.Success, time.Now().String())
+	err := zk.CreateOrSet(this.zk, this.Task.Success, time.Now().Path())
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (this *task) Error(error interface{}) error {
 		return err
 	}
 
-	this.Log("Error", "Error written to", this.Task.Error.String())
+	this.Log("Error", "Error written to", this.Task.Error.Path())
 	this.Stop()
 	return nil
 }
