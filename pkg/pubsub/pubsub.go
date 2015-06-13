@@ -3,6 +3,7 @@ package pubsub
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"sync"
@@ -133,10 +134,12 @@ func (this *writer) Write(p []byte) (n int, err error) {
 }
 
 type reader struct {
-	sub   Subscriber
-	topic Topic
-	read  <-chan []byte
-	buff  bytes.Buffer
+	sub        Subscriber
+	topic      Topic
+	read       <-chan []byte
+	buff       bytes.Buffer
+	ready      chan bool
+	bytes_read int
 }
 
 func GetReader(topic Topic, sub Subscriber) io.Reader {
@@ -149,6 +152,7 @@ func GetReader(topic Topic, sub Subscriber) io.Reader {
 		topic: topic,
 		sub:   sub,
 		read:  read,
+		ready: make(chan bool),
 	}
 	go func() { r.loop() }()
 
@@ -157,13 +161,30 @@ func GetReader(topic Topic, sub Subscriber) io.Reader {
 
 func (this *reader) loop() {
 	for {
-		_, err := this.buff.Write(<-this.read)
+		m := <-this.read
+		fmt.Printf("TOPIC %s -- %s (%d)\n", this.topic, string(m), len(m))
+		_, err := this.buff.Write(m)
+		this.bytes_read += len(m)
+		this.ready <- err == nil
 		if err != nil {
 			break
 		}
 	}
 }
 
+// TODO - implement some kind of session / flow control because
+// 1. the topic never goes away; however there may be no messages published.
+// 2. when no messages are published, there's no data in the buffer so the
+//    read will get a EOF.  This will cause the reader to throw a EOF and
+//    possbily terminating the something down stream (like a /bin/bash process).
 func (this *reader) Read(p []byte) (n int, err error) {
-	return this.buff.Read(p)
+	if this.buff.Len() == 0 {
+		ready := <-this.ready
+		if !ready {
+			return 0, io.EOF
+		}
+	}
+	n, err = this.buff.Read(p)
+	fmt.Printf("READER %s -- %s (%d), err=%s\n", this.topic, string(p), n, err)
+	return
 }
