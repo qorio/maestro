@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang/glog"
+	"github.com/qorio/maestro/pkg/pubsub"
 	"github.com/qorio/maestro/pkg/zk"
+	"io"
 	"runtime"
 	"strings"
 	"time"
@@ -16,7 +18,7 @@ var (
 	ErrStopped   = errors.New("stopped")
 )
 
-type task struct {
+type Runtime struct {
 	Task
 
 	zk zk.ZK
@@ -24,9 +26,11 @@ type task struct {
 	status chan []byte
 	stdout chan []byte
 	stderr chan []byte
+	stdin  chan []byte
 
 	options interface{}
 	done    bool
+	ready   bool
 }
 
 func (this *Task) Validate() error {
@@ -41,12 +45,12 @@ func (this *Task) Validate() error {
 	return nil
 }
 
-func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*task, error) {
+func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
 	if err := this.Validate(); err != nil {
 		return nil, err
 	}
 
-	task := task{
+	task := Runtime{
 		Task: *this,
 		zk:   zkc,
 	}
@@ -73,7 +77,7 @@ func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*task, error) {
 	return &task, nil
 }
 
-func (this *task) Stop() {
+func (this *Runtime) Stop() {
 	if this.done {
 		return
 	}
@@ -90,7 +94,42 @@ func (this *task) Stop() {
 	this.done = true
 }
 
-func (this *task) Log(m ...string) {
+func (this *Runtime) Stdin() io.Reader {
+	if this.Task.Stdin == nil {
+		return nil
+	}
+	if c, err := this.Task.Stdin.Broker().PubSub(this.Id, this.options); err == nil {
+		return pubsub.GetReader(*this.Task.Stdin, c)
+	} else {
+		return nil
+	}
+}
+
+func (this *Runtime) Stdout() io.Writer {
+	if this.Task.Stdout == nil {
+		return nil
+	}
+	if c, err := this.Task.Stdout.Broker().PubSub(this.Id, this.options); err == nil {
+		return pubsub.GetWriter(*this.Task.Stdout, c)
+	} else {
+		glog.Warningln("Error getting stdout.", "Topic=", *this.Task.Stdout, "Err=", err)
+		return nil
+	}
+}
+
+func (this *Runtime) Stderr() io.Writer {
+	if this.Task.Stderr == nil {
+		return nil
+	}
+	if c, err := this.Task.Stderr.Broker().PubSub(this.Id, this.options); err == nil {
+		return pubsub.GetWriter(*this.Task.Stderr, c)
+	} else {
+		glog.Warningln("Error getting stderr.", "Topic=", *this.Task.Stderr, "Err=", err)
+		return nil
+	}
+}
+
+func (this *Runtime) Log(m ...string) {
 	if this.done {
 		return
 	}
@@ -105,11 +144,15 @@ func (this *task) Log(m ...string) {
 	glog.Infoln(source, m)
 }
 
-func (this *task) Running() bool {
+func (this *Runtime) Running() bool {
 	return !this.done
 }
 
-func (this *task) Start() (stdout, stderr chan<- []byte, err error) {
+func (this *Runtime) Start() (stdout, stderr chan<- []byte, err error) {
+	if this.ready {
+		return this.stdout, this.stderr, nil
+	}
+
 	if this.done {
 		return nil, nil, ErrStopped
 	}
@@ -159,35 +202,65 @@ func (this *task) Start() (stdout, stderr chan<- []byte, err error) {
 		}()
 		this.Log("Sending stderr to", this.Task.Stderr.Path())
 	}
+	this.ready = true
 	return this.stdout, this.stderr, nil
 }
 
-func (this *task) Success(output interface{}) error {
+func (this *Runtime) Success(output interface{}) error {
 	if this.done {
 		return ErrStopped
 	}
 
-	value, err := json.Marshal(output)
-	if err != nil {
-		return err
-	}
-	err = zk.CreateOrSetBytes(this.zk, this.Task.Success, value)
-	if err != nil {
-		return err
-	}
-
-	// copy the data over
-	if this.Task.Output != nil {
-		err = zk.CreateOrSetBytes(this.zk, *this.Task.Output, value)
+	switch output.(type) {
+	case []byte:
+		err := zk.CreateOrSetBytes(this.zk, this.Task.Success, output.([]byte))
 		if err != nil {
 			return err
 		}
-		this.Log("Success", "Result written to", this.Task.Output.Path())
+		// copy the data over
+		if this.Task.Output != nil {
+			err := zk.CreateOrSetBytes(this.zk, *this.Task.Output, output.([]byte))
+			if err != nil {
+				return err
+			}
+			this.Log("Success", "Result written to", this.Task.Output.Path())
+		}
+	case string:
+		err := zk.CreateOrSetString(this.zk, this.Task.Success, output.(string))
+		if err != nil {
+			return err
+		}
+		// copy the data over
+		if this.Task.Output != nil {
+			err = zk.CreateOrSetString(this.zk, *this.Task.Output, output.(string))
+			if err != nil {
+				return err
+			}
+			this.Log("Success", "Result written to", this.Task.Output.Path())
+		}
+	default:
+		value, err := json.Marshal(output)
+		if err != nil {
+			return err
+		}
+		err = zk.CreateOrSetBytes(this.zk, this.Task.Success, value)
+		if err != nil {
+			return err
+		}
+		// copy the data over
+		if this.Task.Output != nil {
+			err = zk.CreateOrSetBytes(this.zk, *this.Task.Output, value)
+			if err != nil {
+				return err
+			}
+			this.Log("Success", "Result written to", this.Task.Output.Path())
+		}
 	}
+	this.Log("Success", "Result written to", this.Task.Success.Path())
 
 	now := time.Now()
 	this.Stat.Success = &now
-	err = zk.CreateOrSet(this.zk, this.Info, this.Stat)
+	err := zk.CreateOrSet(this.zk, this.Info, this.Stat)
 	if err != nil {
 		return err
 	}
@@ -197,27 +270,41 @@ func (this *task) Success(output interface{}) error {
 	return nil
 }
 
-func (this *task) Error(error interface{}) error {
+func (this *Runtime) Error(error interface{}) error {
 	if this.done {
 		return ErrStopped
 	}
-	value, err := json.Marshal(error)
-	if err != nil {
-		return err
+	switch error.(type) {
+	case []byte:
+		err := zk.CreateOrSetBytes(this.zk, this.Task.Error, error.([]byte))
+		if err != nil {
+			return err
+		}
+	case string:
+		err := zk.CreateOrSetString(this.zk, this.Task.Error, error.(string))
+		if err != nil {
+			return err
+		}
+	default:
+		value, err := json.Marshal(error)
+		if err != nil {
+			return err
+		}
+		err = zk.CreateOrSetBytes(this.zk, this.Task.Error, value)
+		if err != nil {
+			return err
+		}
 	}
-	err = zk.CreateOrSet(this.zk, this.Task.Error, string(value))
-	if err != nil {
-		return err
-	}
+	this.Log("Error", "Error written to", this.Task.Error.Path())
 
 	now := time.Now()
 	this.Stat.Error = &now
-	err = zk.CreateOrSet(this.zk, this.Info, this.Stat)
+	err := zk.CreateOrSet(this.zk, this.Info, this.Stat)
 	if err != nil {
 		return err
 	}
 
-	this.Log("Error", "Error written to", this.Task.Error.Path())
+	this.Log("Error", "Stop")
 	this.Stop()
 	return nil
 }
