@@ -1,9 +1,7 @@
 package pubsub
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"regexp"
 	"sync"
@@ -133,81 +131,16 @@ func (this *writer) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-type reader struct {
-	sub        Subscriber
-	topic      Topic
-	read       <-chan []byte
-	buff       bytes.Buffer
-	ready      chan bool
-	bytes_read int
-	bytes_xfer int
-
-	pw *io.PipeWriter
-	pr *io.PipeReader
-}
-
 func GetReader(topic Topic, sub Subscriber) io.Reader {
-	read, err := sub.Subscribe(topic)
+	in, err := sub.Subscribe(topic)
 	if err != nil {
 		return nil
 	}
-
 	pr, pw := io.Pipe()
-	r := reader{
-		topic: topic,
-		sub:   sub,
-		read:  read,
-		ready: make(chan bool),
-		pr:    pr,
-		pw:    pw,
-	}
-	go func() { r.loop() }()
-
-	return r.pr
-}
-
-func (this *reader) loop() {
-	for {
-		m := <-this.read
-		fmt.Printf("TOPIC %s -- %s (%d)\n", this.topic, string(m), len(m))
-		n, _ := this.pw.Write(m)
-		this.bytes_read += len(m)
-		this.bytes_xfer += n
-
-		this.ready <- len(m) == n
-		// if err != nil {
-		// 	break
-		// }
-	}
-}
-
-func (this *reader) loop0() {
-	for {
-		m := <-this.read
-		fmt.Printf("TOPIC %s -- %s (%d)\n", this.topic, string(m), len(m))
-
-		n, _ := this.buff.Write(m)
-		this.bytes_read += len(m)
-		this.ready <- len(m) == n
-		// if err != nil {
-		// 	break
-		// }
-	}
-}
-
-// TODO - implement some kind of session / flow control because
-// 1. the topic never goes away; however there may be no messages published.
-// 2. when no messages are published, there's no data in the buffer so the
-//    read will get a EOF.  This will cause the reader to throw a EOF and
-//    possbily terminating the something down stream (like a /bin/bash process).
-func (this *reader) Read(p []byte) (n int, err error) {
-	if this.buff.Len() == 0 {
-		ready := <-this.ready
-		if !ready {
-			return 0, io.EOF
+	go func() {
+		for {
+			pw.Write(<-in)
 		}
-	}
-	n, err = this.buff.Read(p)
-	fmt.Printf("READER %s -- %s (%d), err=%s\n", this.topic, string(p), n, err)
-	return
+	}()
+	return pr
 }
