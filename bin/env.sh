@@ -18,10 +18,10 @@ if [[ $(which godep) == "" ]]; then
     go get github.com/tools/godep
 fi
 
-# Run go oracle for development https://godoc.org/code.google.com/p/go.tools/oracle
+# Run go oracle for development golang.org/x/tools/oracle
 if [[ $(which oracle) == "" ]]; then
     echo "Setting up go oracle for source code analysis."
-    go install code.google.com/p/go.tools/cmd/oracle
+    go install golang.org/x/tools/oracle
 fi
 
 if [[ $(which godoc) == "" ]]; then
