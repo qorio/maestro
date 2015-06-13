@@ -140,6 +140,10 @@ type reader struct {
 	buff       bytes.Buffer
 	ready      chan bool
 	bytes_read int
+	bytes_xfer int
+
+	pw *io.PipeWriter
+	pr *io.PipeReader
 }
 
 func GetReader(topic Topic, sub Subscriber) io.Reader {
@@ -148,27 +152,46 @@ func GetReader(topic Topic, sub Subscriber) io.Reader {
 		return nil
 	}
 
+	pr, pw := io.Pipe()
 	r := reader{
 		topic: topic,
 		sub:   sub,
 		read:  read,
 		ready: make(chan bool),
+		pr:    pr,
+		pw:    pw,
 	}
 	go func() { r.loop() }()
 
-	return &r
+	return r.pr
 }
 
 func (this *reader) loop() {
 	for {
 		m := <-this.read
 		fmt.Printf("TOPIC %s -- %s (%d)\n", this.topic, string(m), len(m))
-		_, err := this.buff.Write(m)
+		n, _ := this.pw.Write(m)
 		this.bytes_read += len(m)
-		this.ready <- err == nil
-		if err != nil {
-			break
-		}
+		this.bytes_xfer += n
+
+		this.ready <- len(m) == n
+		// if err != nil {
+		// 	break
+		// }
+	}
+}
+
+func (this *reader) loop0() {
+	for {
+		m := <-this.read
+		fmt.Printf("TOPIC %s -- %s (%d)\n", this.topic, string(m), len(m))
+
+		n, _ := this.buff.Write(m)
+		this.bytes_read += len(m)
+		this.ready <- len(m) == n
+		// if err != nil {
+		// 	break
+		// }
 	}
 }
 

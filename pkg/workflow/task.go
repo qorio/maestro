@@ -105,6 +105,18 @@ func (this *Runtime) Stdin() io.Reader {
 	}
 }
 
+func (this *Runtime) PublishStdin() io.Writer {
+	if this.Task.Stdin == nil {
+		return nil
+	}
+	if c, err := this.Task.Stdin.Broker().PubSub(this.Id, this.options); err == nil {
+		return pubsub.GetWriter(*this.Task.Stdin, c)
+	} else {
+		glog.Warningln("Error getting stdin.", "Topic=", *this.Task.Stdin, "Err=", err)
+		return nil
+	}
+}
+
 func (this *Runtime) Stdout() io.Writer {
 	if this.Task.Stdout == nil {
 		return nil

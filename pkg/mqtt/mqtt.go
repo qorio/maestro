@@ -52,9 +52,13 @@ func Connect(id, addr string, options ...interface{}) (pubsub.PubSub, error) {
 	}, nil
 }
 
+func errNotSupportedProtocol(t pubsub.Topic) error {
+	return errors.New("not-supported-protocol:" + t.String())
+}
+
 func (this *Client) Publish(topic pubsub.Topic, message []byte) error {
 	if "mqtt" != topic.Protocol() {
-		return errors.New("NOOOOO" + topic.String()) //ErrNotSupportedProtocol
+		return errNotSupportedProtocol(topic)
 	}
 	token := this.client.Publish(topic.Path(), this.QoS, false, message)
 	token.WaitTimeout(this.PublishTimeout)
@@ -66,7 +70,7 @@ func (this *Client) Publish(topic pubsub.Topic, message []byte) error {
 
 func (this *Client) Subscribe(topic pubsub.Topic) (<-chan []byte, error) {
 	if "mqtt" != topic.Protocol() {
-		return nil, errors.New("BADDDD" + topic.String()) //ErrNotSupportedProtocol
+		return nil, errNotSupportedProtocol(topic)
 	}
 	out := make(chan []byte)
 	token := this.client.Subscribe(topic.Path(), this.QoS, func(cl *MQTT.Client, m MQTT.Message) {
