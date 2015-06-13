@@ -17,10 +17,11 @@ type Orchestration struct {
 type TaskName string
 type Task struct {
 	// Required
+	Id      string        `json:"id"`
 	Info    registry.Path `json:"info"`
 	Success registry.Path `json:"success"`
 	Error   registry.Path `json:"error"`
-	Status  pubsub.Topic  `json:"status_topic"`
+	Status  pubsub.Topic  `json:"status"`
 
 	// Triggering
 	StartTrigger *registry.Path `json:"start,omitempty"`

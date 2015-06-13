@@ -17,6 +17,12 @@ const (
 	QOS_TWO  = 2 //MQTT.QoS = MQTT.QOS_TWO
 )
 
+func init() {
+	pubsub.Register("mqtt", func(id, addr string, options ...interface{}) (pubsub.PubSub, error) {
+		return Connect(id, addr, options...)
+	})
+}
+
 type Client struct {
 	BrokerAddr       string        `json:"broker_addr"`
 	ClientId         string        `json:"client_id"`
@@ -26,7 +32,7 @@ type Client struct {
 	client           *MQTT.Client
 }
 
-func Connect(id, addr string) (pubsub.PubSub, error) {
+func Connect(id, addr string, options ...interface{}) (pubsub.PubSub, error) {
 	opts := MQTT.NewClientOptions()
 	opts.AddBroker("tcp://" + addr)
 	opts.SetClientID(id)
@@ -48,7 +54,7 @@ func Connect(id, addr string) (pubsub.PubSub, error) {
 
 func (this *Client) Publish(topic pubsub.Topic, message []byte) error {
 	if "mqtt" != topic.Protocol() {
-		return ErrNotSupportedProtocol
+		return errors.New("NOOOOO" + topic.String()) //ErrNotSupportedProtocol
 	}
 	token := this.client.Publish(topic.Path(), this.QoS, false, message)
 	token.WaitTimeout(this.PublishTimeout)
@@ -60,7 +66,7 @@ func (this *Client) Publish(topic pubsub.Topic, message []byte) error {
 
 func (this *Client) Subscribe(topic pubsub.Topic) (<-chan []byte, error) {
 	if "mqtt" != topic.Protocol() {
-		return nil, ErrNotSupportedProtocol
+		return nil, errors.New("BADDDD" + topic.String()) //ErrNotSupportedProtocol
 	}
 	out := make(chan []byte)
 	token := this.client.Subscribe(topic.Path(), this.QoS, func(cl *MQTT.Client, m MQTT.Message) {

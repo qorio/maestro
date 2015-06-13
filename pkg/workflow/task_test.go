@@ -13,17 +13,27 @@ import (
 
 var (
 	local_endpoint = "iot.eclipse.org:1883"
-	topic          = pubsub.Topic("mqtt:///this-is-a-test")
+	topic          = pubsub.Topic("mqtt://iot.eclipse.org:1883/this/is/a/test")
 )
 
 func TestTask(t *testing.T) { TestingT(t) }
 
-type TaskTests struct{}
+type TaskTests struct {
+	mq pubsub.PubSub
+}
 
 var _ = Suite(&TaskTests{})
 
-func (suite *TaskTests) TestTaskSuccess(c *C) {
+func (suite *TaskTests) SetUpSuite(c *C) {
+	c.Assert(topic.Valid(), Equals, true)
+	c.Assert(topic.Protocol(), Equals, "mqtt")
+	mq, err := mqtt.Connect("test", local_endpoint)
+	c.Assert(err, Equals, nil)
 
+	suite.mq = mq
+}
+
+func (suite *TaskTests) TestTaskSuccess(c *C) {
 	now := fmt.Sprintf("%d", time.Now().Unix())
 	info := registry.Path("/ops-test/task/test/" + now)
 	output := registry.Path("/ops-test/task/test/" + now + "/out")
@@ -36,9 +46,6 @@ func (suite *TaskTests) TestTaskSuccess(c *C) {
 	z, err := zk.Connect([]string{"localhost:2181"}, 5*time.Second)
 	c.Assert(err, Equals, nil)
 
-	mq, err := mqtt.Connect("test", local_endpoint)
-	c.Assert(err, Equals, nil)
-
 	task, err := (&Task{
 		Info:    info,
 		Success: success,
@@ -47,18 +54,22 @@ func (suite *TaskTests) TestTaskSuccess(c *C) {
 		Stdout:  stdout,
 		Stderr:  stderr,
 		Status:  *status,
-	}).Init(z, mq)
+	}).Init(z)
 	c.Assert(err, Equals, nil)
 	c.Log("task=", task)
 
 	// start a subscriber
-	sub, err := mq.Subscribe(topic)
+	sub, err := suite.mq.Subscribe(topic)
 	c.Assert(err, Equals, nil)
+
+	count := new(int)
+	*count = 0
 	go func() {
 
 		for {
 			m := <-sub
 			c.Log("message=", string(m))
+			*count++
 		}
 	}()
 
@@ -83,10 +94,11 @@ func (suite *TaskTests) TestTaskSuccess(c *C) {
 	// We expect the success path to exist
 	s := zk.GetString(z, success)
 	c.Assert(s, Not(Equals), nil)
+
+	c.Assert(*count, Not(Equals), 0)
 }
 
 func (suite *TaskTests) TestTaskError(c *C) {
-
 	now := fmt.Sprintf("%d", time.Now().Unix())
 	info := registry.Path("/ops-test/task/test2/" + now)
 	output := registry.Path("/ops-test/task/test2/" + now + "/out")
@@ -99,9 +111,6 @@ func (suite *TaskTests) TestTaskError(c *C) {
 	z, err := zk.Connect([]string{"localhost:2181"}, 5*time.Second)
 	c.Assert(err, Equals, nil)
 
-	mq, err := mqtt.Connect("test", local_endpoint)
-	c.Assert(err, Equals, nil)
-
 	task, err := (&Task{
 		Info:    info,
 		Success: success,
@@ -110,12 +119,12 @@ func (suite *TaskTests) TestTaskError(c *C) {
 		Stdout:  stdout,
 		Stderr:  stderr,
 		Status:  *status,
-	}).Init(z, mq)
+	}).Init(z)
 	c.Assert(err, Equals, nil)
 	c.Log("task=", task)
 
 	// start a subscriber
-	sub, err := mq.Subscribe(topic)
+	sub, err := suite.mq.Subscribe(topic)
 	c.Assert(err, Equals, nil)
 	go func() {
 

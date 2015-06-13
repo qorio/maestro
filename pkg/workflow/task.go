@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang/glog"
-	"github.com/qorio/maestro/pkg/pubsub"
 	"github.com/qorio/maestro/pkg/zk"
 	"runtime"
 	"strings"
@@ -20,14 +19,14 @@ var (
 type task struct {
 	Task
 
-	zk  zk.ZK
-	pub pubsub.Publisher
+	zk zk.ZK
 
 	status chan []byte
 	stdout chan []byte
 	stderr chan []byte
 
-	done bool
+	options interface{}
+	done    bool
 }
 
 func (this *Task) Validate() error {
@@ -42,7 +41,7 @@ func (this *Task) Validate() error {
 	return nil
 }
 
-func (this *Task) Init(zkc zk.ZK, pub pubsub.Publisher) (*task, error) {
+func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*task, error) {
 	if err := this.Validate(); err != nil {
 		return nil, err
 	}
@@ -50,7 +49,9 @@ func (this *Task) Init(zkc zk.ZK, pub pubsub.Publisher) (*task, error) {
 	task := task{
 		Task: *this,
 		zk:   zkc,
-		pub:  pub,
+	}
+	if len(options) > 0 {
+		task.options = options[0]
 	}
 
 	task.status = make(chan []byte)
@@ -118,7 +119,11 @@ func (this *task) Start() (stdout, stderr chan<- []byte, err error) {
 			if m == nil {
 				break
 			}
-			this.pub.Publish(this.Task.Status, m)
+			if c, err := this.Task.Status.Broker().PubSub(this.Id, this.options); err == nil {
+				c.Publish(this.Task.Status, m)
+			} else {
+				glog.Warningln("Cannot publish:", this.Task.Status.String(), "Err=", err)
+			}
 		}
 	}()
 	if this.stdout != nil {
@@ -128,7 +133,12 @@ func (this *task) Start() (stdout, stderr chan<- []byte, err error) {
 				if m == nil {
 					break
 				}
-				this.pub.Publish(*this.Task.Stdout, m)
+				if c, err := this.Task.Stdout.Broker().PubSub(this.Id, this.options); err == nil {
+					c.Publish(*this.Task.Stdout, m)
+				} else {
+					glog.Warningln("Cannot publish:", this.Task.Stdout.String(), "Err=", err)
+				}
+
 			}
 		}()
 		this.Log("Sending stdout to", this.Task.Stdout.Path())
@@ -140,7 +150,11 @@ func (this *task) Start() (stdout, stderr chan<- []byte, err error) {
 				if m == nil {
 					break
 				}
-				this.pub.Publish(*this.Task.Stderr, m)
+				if c, err := this.Task.Stderr.Broker().PubSub(this.Id, this.options); err == nil {
+					c.Publish(*this.Task.Stderr, m)
+				} else {
+					glog.Warningln("Cannot publish:", this.Task.Stderr.String(), "Err=", err)
+				}
 			}
 		}()
 		this.Log("Sending stderr to", this.Task.Stderr.Path())
