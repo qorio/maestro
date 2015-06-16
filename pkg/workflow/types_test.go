@@ -38,7 +38,7 @@ func (suite *TypesTests) TestUnmarshalMarshal(c *C) {
 	c.Assert(t.Success, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-seed"))
 	c.Assert(t.Error, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/exception"))
 
-	c.Assert(time.Duration(*t.Condition.Timeout).Seconds(), Equals, float64(300))
+	c.Assert(time.Duration(*t.StartTrigger.Timeout).Seconds(), Equals, float64(300))
 
 	// marshal
 	m, err := json.Marshal(t)

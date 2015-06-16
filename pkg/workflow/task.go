@@ -48,9 +48,6 @@ func (this *Task) Validate() error {
 }
 
 func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
 	if err := this.Validate(); err != nil {
 		return nil, err
 	}
@@ -62,7 +59,6 @@ func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
 	if len(options) > 0 {
 		task.options = options[0]
 	}
-
 	task.status = make(chan []byte)
 
 	if task.Task.Stdout != nil {
@@ -184,7 +180,7 @@ func (this *Runtime) start_triggers() error {
 	if this.StartTrigger == nil {
 		return nil
 	}
-
+	return nil
 }
 
 func (this *Runtime) start_streams() (stdout, stderr chan<- []byte, err error) {
