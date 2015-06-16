@@ -74,7 +74,7 @@ func (suite *TaskTests) TestTaskSuccess(c *C) {
 	}()
 
 	// now do work
-	ch_stdout, ch_stderr, err := task.Start()
+	ch_stdout, ch_stderr, err := task.start_streams()
 
 	c.Assert(err, Equals, nil)
 	ch_stdout <- []byte("message to stdout")
@@ -135,7 +135,7 @@ func (suite *TaskTests) TestTaskError(c *C) {
 	}()
 
 	// now do work
-	ch_stdout, ch_stderr, err := task.Start()
+	ch_stdout, ch_stderr, err := task.start_streams()
 
 	c.Assert(err, Equals, nil)
 	ch_stdout <- []byte("message to stdout")
