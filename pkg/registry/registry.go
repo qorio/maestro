@@ -40,14 +40,19 @@ type Key interface {
 	Path() string
 }
 
+func (p Path) Member(k string) Path {
+	return Path(string(p) + "/" + k)
+}
+
 type Delete Path
 type Create Path
 type Change Path
 type Members struct {
-	Top    Path   `json:"path"`
-	Min    *int32 `json:"min,omitempty"`
-	Max    *int32 `json:"max,omitempty"`
-	Equals *int32 `json:"eq,omitempty"`
+	Top          Path   `json:"path"`
+	Min          *int32 `json:"min,omitempty"`
+	Max          *int32 `json:"max,omitempty"`
+	Equals       *int32 `json:"eq,omitempty"`
+	OutsideRange bool   `json:"outside_range,omitempty"` // default is within range.  true for outside range.
 }
 
 func (p Path) Path() string {

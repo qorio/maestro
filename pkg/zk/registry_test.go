@@ -234,3 +234,257 @@ func (suite *RegistryTests) TestMembers2(c *C) {
 
 	c.Assert(<-called, Equals, true)
 }
+
+func (suite *RegistryTests) TestTimeout(c *C) {
+
+	timeout := r.Timeout(1 * time.Second)
+	create := r.Create(test_ns("/conditions1/test/create"))
+	cond := r.Conditions{
+		Timeout: &timeout,
+		Create:  &create,
+	}
+
+	received := make(chan error)
+
+	conditions := NewConditions(cond, suite.zk)
+	go func() {
+		received <- conditions.Wait()
+	}()
+
+	time.Sleep(10)
+
+	err := <-received
+	c.Assert(err, Equals, ErrTimeout)
+
+}
+
+func (suite *RegistryTests) TestConditions1(c *C) {
+
+	timeout := r.Timeout(10 * time.Second)
+	create := r.Create(test_ns("/conditions1/test/create"))
+	cond := r.Conditions{
+		Timeout: &timeout,
+		Create:  &create,
+	}
+
+	received := make(chan error)
+
+	conditions := NewConditions(cond, suite.zk)
+	go func() {
+		received <- conditions.Wait()
+	}()
+
+	// Now create the node
+	CreateOrSet(suite.zk, test_ns("/conditions1/test/create"), "foo")
+	err := <-received
+
+	c.Assert(err, Equals, nil)
+}
+
+func (suite *RegistryTests) TestConditions2(c *C) {
+
+	timeout := r.Timeout(2 * time.Second)
+	create := r.Create(test_ns("/conditions2/test/create"))
+	delete := r.Delete(test_ns("/conditions2/test/create"))
+	cond := r.Conditions{
+		All:     true,
+		Timeout: &timeout,
+		Create:  &create,
+		Delete:  &delete,
+	}
+
+	received := make(chan error)
+
+	conditions := NewConditions(cond, suite.zk)
+	go func() {
+		received <- conditions.Wait()
+	}()
+
+	// Now create the node
+	CreateOrSet(suite.zk, test_ns("/conditions2/test/create"), "foo")
+
+	// Now let it timeout
+	time.Sleep(5)
+	err := <-received
+	c.Assert(err, Equals, ErrTimeout)
+}
+
+func (suite *RegistryTests) TestConditions3(c *C) {
+
+	p1, p2 := test_ns("/conditions3/test/1"), test_ns("/conditions3/test/2")
+	CreateOrSet(suite.zk, p1, "bar")
+
+	timeout := r.Timeout(10 * time.Second)
+	delete := r.Delete(p1)
+	create := r.Create(p2)
+
+	cond := r.Conditions{
+		All:     true,
+		Timeout: &timeout,
+		Create:  &create,
+		Delete:  &delete,
+	}
+
+	received := make(chan error)
+
+	conditions := NewConditions(cond, suite.zk)
+	go func() {
+		received <- conditions.Wait()
+	}()
+
+	// Now create the node
+	CreateOrSet(suite.zk, p2, "foo")
+
+	// Now let it timeout
+	time.Sleep(2)
+
+	DeleteObject(suite.zk, p1)
+
+	err := <-received
+
+	c.Log("Pending=", conditions.Pending())
+	c.Assert(err, Equals, nil)
+
+}
+
+/// Use case for counting members in a load balancer group
+func (suite *RegistryTests) TestConditionsMembersMin(c *C) {
+
+	p := test_ns("/conditions4/test/group")
+	CreateOrSet(suite.zk, p, "bar")
+
+	min := int32(2)
+	timeout := r.Timeout(10 * time.Second)
+	members := r.Members{
+		Top: p,
+		Min: &min,
+	}
+
+	cond := r.Conditions{
+		Timeout: &timeout,
+		Members: &members,
+	}
+
+	received := make(chan error)
+
+	conditions := NewConditions(cond, suite.zk)
+	go func() {
+		received <- conditions.Wait()
+	}()
+
+	// Now create the node
+	CreateOrSet(suite.zk, p.Member("a"), "foo")
+	CreateOrSet(suite.zk, p.Member("b"), "foo")
+	CreateOrSet(suite.zk, p.Member("c"), "foo")
+
+	// Now let it timeout
+	time.Sleep(2)
+
+	err := <-received
+
+	c.Assert(err, Equals, nil)
+}
+
+func (suite *RegistryTests) TestConditionsMembersEquals(c *C) {
+
+	p := test_ns("/conditions4/test/group")
+	CreateOrSet(suite.zk, p, "bar")
+
+	eq := int32(5)
+	timeout := r.Timeout(10 * time.Second)
+	members := r.Members{
+		Top:    p,
+		Equals: &eq,
+	}
+
+	cond := r.Conditions{
+		Timeout: &timeout,
+		Members: &members,
+	}
+
+	received := make(chan error)
+
+	conditions := NewConditions(cond, suite.zk)
+	go func() {
+		received <- conditions.Wait()
+		c.Log("Got done!")
+	}()
+
+	ticker := time.NewTicker(time.Millisecond * 500)
+	i := int32(0)
+	for {
+		done := false
+		select {
+		case <-ticker.C:
+			// Now create the node
+			CreateOrSet(suite.zk, p.Member(fmt.Sprintf("%d", i)), "foo")
+			i += 1
+		case <-received:
+			c.Log("Received done!")
+			done = true
+		}
+		if done {
+			break
+		}
+	}
+
+	c.Assert(i, DeepEquals, eq)
+}
+
+func (suite *RegistryTests) TestConditionsMemberOutsideRange(c *C) {
+
+	p := test_ns("/conditions5/test/group")
+
+	// Initially we want to be in range.
+	// We want to trigger when it's outside this.
+	CreateOrSet(suite.zk, p, "foo")
+	for i := 0; i < 10; i++ {
+		CreateOrSet(suite.zk, p.Member(fmt.Sprintf("%d", i)), "foo")
+	}
+
+	min := int32(3)
+	max := int32(15)
+
+	timeout := r.Timeout(10 * time.Second)
+	members := r.Members{
+		Top:          p,
+		Min:          &min,
+		Max:          &max,
+		OutsideRange: true,
+	}
+
+	cond := r.Conditions{
+		Timeout: &timeout,
+		Members: &members,
+	}
+
+	received := make(chan error)
+
+	conditions := NewConditions(cond, suite.zk)
+	go func() {
+		received <- conditions.Wait()
+		c.Log("Got done!")
+	}()
+
+	ticker := time.NewTicker(time.Millisecond * 500)
+
+	// Let grow ==> move out of range by growing...
+	n := int32(0)
+	for {
+		done := false
+		select {
+		case <-ticker.C:
+			// Now create the node
+			CreateOrSet(suite.zk, p.Member(fmt.Sprintf("%d", n+10)), "foo")
+			n++
+		case <-received:
+			c.Log("Received done!")
+			done = true
+		}
+		if done {
+			break
+		}
+	}
+
+	c.Assert(n, Equals, int32(5))
+}
