@@ -123,3 +123,13 @@ func Increment(zc ZK, key registry.Path, increment int) error {
 	}
 	return nil
 }
+
+func DeleteObject(zc ZK, key registry.Path) error {
+	err := zc.Delete(key.Path())
+	switch err {
+	case ErrNotExist:
+		return nil
+	default:
+		return err
+	}
+}

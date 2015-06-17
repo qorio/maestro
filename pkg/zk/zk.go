@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	ErrNotConnected = errors.New("zk-not-connected")
-	ErrNotExist     = errors.New("zk-not-exist")
+	ErrNotConnected = errors.New("zk-not-initialized")
+	ErrNotExist     = zk.ErrNoNode
 )
 
 const (
@@ -37,6 +37,7 @@ type ZK interface {
 	CreateEphemeral(string, []byte) (*Node, error)
 	Get(string) (*Node, error)
 	Watch(string, func(Event)) (chan<- bool, error)
+	WatchChildren(string, func(Event)) (chan<- bool, error)
 	KeepWatch(string, func(Event) bool) (chan<- bool, error)
 	Delete(string) error
 }
@@ -64,11 +65,12 @@ func (z *Node) IsLeaf() bool {
 }
 
 type Node struct {
-	Path  string
-	Value []byte
-	Stats *zk.Stat
-	Leaf  bool
-	zk    *zookeeper
+	Path    string
+	Value   []byte
+	Members []string
+	Stats   *zk.Stat
+	Leaf    bool
+	zk      *zookeeper
 }
 
 func Connect(servers []string, timeout time.Duration) (*zookeeper, error) {
@@ -142,6 +144,40 @@ func (this *zookeeper) Watch(path string, f func(Event)) (chan<- bool, error) {
 		return nil, err
 	}
 	return run_watch(f, event_chan)
+}
+
+func (this *zookeeper) WatchChildren(path string, f func(Event)) (chan<- bool, error) {
+	if err := this.check(); err != nil {
+		return nil, err
+	}
+
+	_, _, event_chan, err := this.conn.ChildrenW(path)
+	switch {
+
+	case err == ErrNotExist:
+		_, _, event_chan0, err0 := this.conn.ExistsW(path)
+		if err0 != nil {
+			return nil, err0
+		}
+		// First watch for creation
+		// Use a common stop
+		stop1 := make(chan bool)
+		_, err1 := run_watch(func(e Event) {
+			if e.Type == zk.EventNodeCreated {
+				if _, _, event_chan2, err2 := this.conn.ChildrenW(path); err2 == nil {
+					// then watch for children
+					run_watch(f, event_chan2, stop1)
+				}
+			}
+		}, event_chan0, stop1)
+		return stop1, err1
+
+	case err == nil:
+		return run_watch(f, event_chan)
+
+	default:
+		return nil, err
+	}
 }
 
 func (this *zookeeper) KeepWatch(path string, f func(Event) bool) (chan<- bool, error) {
@@ -278,11 +314,16 @@ func (this *Node) Get() error {
 	return nil
 }
 
-func run_watch(f func(Event), event_chan <-chan zk.Event) (chan<- bool, error) {
+func run_watch(f func(Event), event_chan <-chan zk.Event, optionalStop ...chan bool) (chan bool, error) {
 	if f == nil {
 		return nil, nil
 	}
+
 	stop := make(chan bool, 1)
+	if len(optionalStop) > 0 {
+		stop = optionalStop[0]
+	}
+
 	go func() {
 		// Note ZK only fires once and after that we need to reschedule.
 		// With this api this may mean we get a new event channel.
@@ -309,6 +350,19 @@ func (this *Node) Watch(f func(Event)) (chan<- bool, error) {
 		return nil, filter_err(err)
 	}
 	this.Value = value
+	this.Stats = stat
+	return run_watch(f, event_chan)
+}
+
+func (this *Node) WatchChildren(f func(Event)) (chan<- bool, error) {
+	if err := this.zk.check(); err != nil {
+		return nil, err
+	}
+	members, stat, event_chan, err := this.zk.conn.ChildrenW(this.Path)
+	if err != nil {
+		return nil, filter_err(err)
+	}
+	this.Members = members
 	this.Stats = stat
 	return run_watch(f, event_chan)
 }
