@@ -1,4 +1,4 @@
-package workflow
+package task
 
 import (
 	"encoding/json"
@@ -33,6 +33,7 @@ type Runtime struct {
 	done    bool
 	ready   bool
 	lock    sync.Mutex
+	error   error
 }
 
 func (this *Task) Validate() error {
@@ -164,26 +165,56 @@ func (this *Runtime) Running() bool {
 	return !this.done
 }
 
-func (this *Runtime) Start() (stdout, stderr chan<- []byte, err error) {
-	this.lock.Lock()
-	defer this.lock.Unlock()
-
-	_, _, err = this.start_streams()
+func (this *Runtime) Start() error {
+	_, _, err := this.start_streams()
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
-	this.ready = true
-	return this.stdout, this.stderr, nil
-}
 
-func (this *Runtime) start_triggers() error {
-	if this.StartTrigger == nil {
-		return nil
+	err = this.block_on_triggers()
+	if err == zk.ErrTimeout {
+		return err
+	}
+
+	// Run the actual task
+	if this.Task.Exec != nil {
+		return this.exec()
 	}
 	return nil
 }
 
+func (this *Runtime) block_on_triggers() error {
+	if this.Start == nil {
+		return nil
+	}
+
+	// TODO - take into account ordering of cron vs registry.
+
+	if this.Trigger.Registry != nil {
+		trigger := zk.NewConditions(*this.Trigger.Registry, this.zk)
+		// So now just block until the condition is true
+		return trigger.Wait()
+	}
+
+	return nil
+}
+
+func (this *Runtime) exec() error {
+
+	return nil
+}
+
 func (this *Runtime) start_streams() (stdout, stderr chan<- []byte, err error) {
+	this.lock.Lock()
+	defer func() {
+		this.error = err
+		this.lock.Unlock()
+	}()
+
+	if this.error != nil {
+		return nil, nil, this.error
+	}
+
 	if this.ready {
 		return this.stdout, this.stderr, nil
 	}
@@ -237,6 +268,7 @@ func (this *Runtime) start_streams() (stdout, stderr chan<- []byte, err error) {
 		}()
 		this.Log("Sending stderr to", this.Task.Stderr.Path())
 	}
+	this.ready = true
 	return this.stdout, this.stderr, nil
 }
 

@@ -1,5 +1,5 @@
 
-all: test-workflow
+all: test-task
 
-test-workflow:
+test-task:
 	${GODEP} go test ./... -check.vv -v ${TEST_ARGS} --logtostderr

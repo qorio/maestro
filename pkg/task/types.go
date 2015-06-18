@@ -1,4 +1,4 @@
-package workflow
+package task
 
 import (
 	"github.com/qorio/maestro/pkg/pubsub"
@@ -14,18 +14,33 @@ type Orchestration struct {
 	Tasks map[TaskName]Task `json:"tasks"`
 }
 
+type CronExpression string
+
+// TODO -- add ordering.  Cron before Registry, or Registry activates cron
+type Trigger struct {
+	Cron     *CronExpression      `json:"cron,omitempty"`
+	Registry *registry.Conditions `json:"registry,omitempty"`
+}
+
+type Cmd struct {
+	Dir  string   `json:"working_dir,omitempty"`
+	Path string   `json:"path"`
+	Args []string `json:"args"`
+	Env  []string `json:"env"`
+}
+
 type TaskName string
 type Task struct {
 	// Required
 	Id      string        `json:"id"`
+	Name    TaskName      `json:"name"`
 	Info    registry.Path `json:"info"`
 	Success registry.Path `json:"success"`
 	Error   registry.Path `json:"error"`
 	Status  pubsub.Topic  `json:"status"`
 
-	// Triggering
-	StartTrigger *registry.Conditions `json:"conditions,omitempty"`
-	WorkerPolicy *WorkerPolicy        `json:"workers,omitempty"`
+	// Conditional execution
+	Trigger *Trigger `json:"start,omitempty"`
 
 	// registry.Paths for storing input/output
 	Input  *registry.Path `json:"input,omitempty"`
@@ -36,7 +51,7 @@ type Task struct {
 	Stdout *pubsub.Topic `json:"stdout_topic,omitempty"`
 	Stderr *pubsub.Topic `json:"stderr_topic,omitempty"`
 
-	Scheduler Reference `json:"scheduler,omitempty"`
+	Exec *Cmd `json:"override,omitempty"`
 
 	Stat TaskStat
 }
@@ -48,8 +63,3 @@ type TaskStat struct {
 	Success   *time.Time `json:"success,omitempty"`
 	Error     *time.Time `json:"error,omitempty"`
 }
-
-// { singleton | scheduler | barrier-N | hostname: }
-type WorkerPolicy string
-
-type Reference string

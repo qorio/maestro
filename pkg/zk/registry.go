@@ -160,6 +160,8 @@ func (this *Conditions) Init(zkc ZK) *Conditions {
 	return this
 }
 
+// Simply blocks until it's either true or a timeout occurs.
+// The error will indicate whether the condition is met or a timeout took place.
 func (this *Conditions) Wait() error {
 	for {
 		select {

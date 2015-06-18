@@ -137,31 +137,7 @@ func (suite *RegistryTests) TestDelete(c *C) {
 
 }
 
-func (suite *RegistryTests) TestChange(c *C) {
-
-	called := make(chan bool)
-
-	/// The change semantics also applies to create (nil to !nil)
-	key := test_ns("/test/testChange")
-	zchange := NewChange(r.Change(key), suite.zk)
-	c.Log("Change:", zchange)
-	err := zchange.Apply(func(k r.Key, before, after *Node) bool {
-		called <- true
-
-		c.Assert(k.Path(), Equals, key.Path())
-		c.Assert(after.GetValueString(), Equals, "hello")
-		c.Assert(before, Equals, (*Node)(nil))
-
-		return true
-	})
-
-	err = CreateOrSet(suite.zk, key, "hello")
-	c.Assert(err, Equals, nil)
-	c.Assert(<-called, Equals, true)
-
-}
-
-func (suite *RegistryTests) TestChange2(c *C) {
+func (suite *RegistryTests) TestChangeSimple(c *C) {
 
 	called := make(chan bool)
 	key := test_ns("/test/testChange2")
@@ -181,6 +157,34 @@ func (suite *RegistryTests) TestChange2(c *C) {
 	err = CreateOrSet(suite.zk, key, "there")
 	c.Assert(err, Equals, nil)
 	c.Assert(<-called, Equals, true)
+}
+
+func (suite *RegistryTests) TestChangeAlsoImpliesCreate(c *C) {
+
+	called := make(chan bool)
+
+	/// The change semantics also applies to create (nil to !nil)
+	key := test_ns("/test/testChange")
+
+	// This node should not exist
+	DeleteObject(suite.zk, key)
+
+	zchange := NewChange(r.Change(key), suite.zk)
+	c.Log("Change:", zchange)
+	err := zchange.Apply(func(k r.Key, before, after *Node) bool {
+		called <- true
+
+		c.Assert(k.Path(), Equals, key.Path())
+		c.Assert(after.GetValueString(), Equals, "hello")
+		c.Assert(before, Equals, (*Node)(nil))
+
+		return true
+	})
+
+	err = CreateOrSet(suite.zk, key, "hello")
+	c.Assert(err, Equals, nil)
+	c.Assert(<-called, Equals, true)
+
 }
 
 func (suite *RegistryTests) TestMembers(c *C) {
@@ -209,7 +213,7 @@ func (suite *RegistryTests) TestMembers(c *C) {
 	c.Assert(<-called, Equals, true)
 }
 
-func (suite *RegistryTests) TestMembers2(c *C) {
+func (suite *RegistryTests) TestMembersAlsoImpliesCreate(c *C) {
 
 	// Node not existing. Wait for creation and then resubscribe to children
 	called := make(chan bool)
