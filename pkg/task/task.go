@@ -2,6 +2,7 @@ package task
 
 import (
 	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 var (
 	ErrBadConfig = errors.New("bad-config")
 	ErrStopped   = errors.New("stopped")
+	ErrTimeout   = errors.New("timeout")
 )
 
 type Runtime struct {
@@ -39,6 +41,22 @@ type Runtime struct {
 	error   error
 
 	stdoutBuff *bytes.Buffer
+}
+
+func (this *Task) Copy() (*Task, error) {
+	var buff bytes.Buffer
+	enc := gob.NewEncoder(&buff)
+	dec := gob.NewDecoder(&buff)
+	err := enc.Encode(this)
+	if err != nil {
+		return nil, err
+	}
+	copy := new(Task)
+	err = dec.Decode(copy)
+	if err != nil {
+		return nil, err
+	}
+	return copy, nil
 }
 
 func (this *Task) Validate() error {
@@ -194,6 +212,22 @@ func (this *Runtime) Running() bool {
 	return !this.done
 }
 
+func (this *Runtime) ApplyEnvAndFuncs(env map[string]interface{}, funcs map[string]interface{}) error {
+	if this.Task.Exec == nil {
+		return nil
+	}
+
+	this.lock.Lock()
+	defer this.lock.Unlock()
+
+	applied, err := this.Task.Exec.ApplySubstitutions(env, funcs)
+	if err != nil {
+		return err
+	}
+	this.Task.Exec = applied
+	return nil
+}
+
 func (this *Runtime) Start() (chan error, error) {
 	_, _, err := this.start_streams()
 	if err != nil {
@@ -202,7 +236,7 @@ func (this *Runtime) Start() (chan error, error) {
 
 	err = this.block_on_triggers()
 	if err == zk.ErrTimeout {
-		return nil, err
+		return nil, ErrTimeout
 	}
 
 	// Run the actual task
@@ -236,16 +270,6 @@ func (this *Runtime) exec() (chan error, error) {
 	cmd := exec.Command(this.Exec.Path, this.Exec.Args...)
 	cmd.Dir = this.Exec.Dir
 	cmd.Env = this.Exec.Env
-
-	// if this.Task.Stdin != nil {
-	// 	stdin, err := cmd.StdinPipe()
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	go func() {
-	// 		io.Copy(io.MultiWriter(stdin, os.Stderr), this.Stdin())
-	// 	}()
-	// }
 
 	if this.Task.Stdin != nil {
 		sub, err := this.Task.Stdin.Broker().PubSub(this.Id, this.options)
@@ -383,6 +407,12 @@ func (this *Runtime) start_streams() (stdout, stderr chan<- []byte, err error) {
 }
 
 func (this *Runtime) Success(output interface{}) error {
+	if this.zk == nil {
+		glog.Infoln("Not connected to zk.  Output not recorded")
+		this.Stop()
+		return nil
+	}
+
 	if this.done {
 		return ErrStopped
 	}
@@ -447,6 +477,12 @@ func (this *Runtime) Success(output interface{}) error {
 }
 
 func (this *Runtime) Error(error interface{}) error {
+	if this.zk == nil {
+		glog.Infoln("Not connected to zk.  Output not recorded")
+		this.Stop()
+		return nil
+	}
+
 	if this.done {
 		return ErrStopped
 	}
