@@ -1,6 +1,7 @@
 package task
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"github.com/qorio/maestro/pkg/pubsub"
 	"github.com/qorio/maestro/pkg/zk"
 	"io"
+	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
@@ -34,6 +37,8 @@ type Runtime struct {
 	ready   bool
 	lock    sync.Mutex
 	error   error
+
+	stdoutBuff *bytes.Buffer
 }
 
 func (this *Task) Validate() error {
@@ -44,6 +49,11 @@ func (this *Task) Validate() error {
 		return ErrBadConfig
 	case !this.Error.Valid():
 		return ErrBadConfig
+	case this.Exec != nil:
+		_, err := exec.LookPath(this.Exec.Path)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -72,9 +82,12 @@ func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
 
 	now := time.Now()
 	task.Stat.Started = &now
-	err := zk.CreateOrSet(task.zk, task.Info, task.Stat)
-	if err != nil {
-		return nil, err
+
+	if task.zk != nil {
+		err := zk.CreateOrSet(task.zk, task.Info, task.Stat)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &task, nil
 }
@@ -101,7 +114,7 @@ func (this *Runtime) Stop() {
 
 func (this *Runtime) Stdin() io.Reader {
 	if this.Task.Stdin == nil {
-		return nil
+		return os.Stdin
 	}
 	if c, err := this.Task.Stdin.Broker().PubSub(this.Id, this.options); err == nil {
 		return pubsub.GetReader(*this.Task.Stdin, c)
@@ -112,7 +125,7 @@ func (this *Runtime) Stdin() io.Reader {
 
 func (this *Runtime) PublishStdin() io.Writer {
 	if this.Task.Stdin == nil {
-		return nil
+		return os.Stdin
 	}
 	if c, err := this.Task.Stdin.Broker().PubSub(this.Id, this.options); err == nil {
 		return pubsub.GetWriter(*this.Task.Stdin, c)
@@ -122,21 +135,37 @@ func (this *Runtime) PublishStdin() io.Writer {
 	}
 }
 
+func (this *Runtime) CaptureStdout() {
+	this.stdoutBuff = new(bytes.Buffer)
+}
+
+func (this *Runtime) GetCapturedStdout() []byte {
+	if this.stdoutBuff != nil {
+		return this.stdoutBuff.Bytes()
+	}
+	return nil
+}
+
 func (this *Runtime) Stdout() io.Writer {
-	if this.Task.Stdout == nil {
-		return nil
+	var stdout io.Writer = os.Stdout
+	if this.Task.Stdout != nil {
+		if c, err := this.Task.Stdout.Broker().PubSub(this.Id, this.options); err == nil {
+			stdout = pubsub.GetWriter(*this.Task.Stdout, c)
+		} else {
+			glog.Warningln("Error getting stdout.", "Topic=", *this.Task.Stdout, "Err=", err)
+			return nil
+		}
 	}
-	if c, err := this.Task.Stdout.Broker().PubSub(this.Id, this.options); err == nil {
-		return pubsub.GetWriter(*this.Task.Stdout, c)
-	} else {
-		glog.Warningln("Error getting stdout.", "Topic=", *this.Task.Stdout, "Err=", err)
-		return nil
+
+	if this.stdoutBuff != nil {
+		stdout = io.MultiWriter(stdout, this.stdoutBuff)
 	}
+	return stdout
 }
 
 func (this *Runtime) Stderr() io.Writer {
 	if this.Task.Stderr == nil {
-		return nil
+		return os.Stderr
 	}
 	if c, err := this.Task.Stderr.Broker().PubSub(this.Id, this.options); err == nil {
 		return pubsub.GetWriter(*this.Task.Stderr, c)
@@ -165,26 +194,30 @@ func (this *Runtime) Running() bool {
 	return !this.done
 }
 
-func (this *Runtime) Start() error {
+func (this *Runtime) Start() (chan error, error) {
 	_, _, err := this.start_streams()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = this.block_on_triggers()
 	if err == zk.ErrTimeout {
-		return err
+		return nil, err
 	}
 
 	// Run the actual task
 	if this.Task.Exec != nil {
 		return this.exec()
 	}
-	return nil
+	return nil, nil
 }
 
 func (this *Runtime) block_on_triggers() error {
 	if this.Start == nil {
+		return nil
+	}
+
+	if this.Trigger == nil {
 		return nil
 	}
 
@@ -199,9 +232,86 @@ func (this *Runtime) block_on_triggers() error {
 	return nil
 }
 
-func (this *Runtime) exec() error {
+func (this *Runtime) exec() (chan error, error) {
+	cmd := exec.Command(this.Exec.Path, this.Exec.Args...)
+	cmd.Dir = this.Exec.Dir
+	cmd.Env = this.Exec.Env
 
-	return nil
+	// if this.Task.Stdin != nil {
+	// 	stdin, err := cmd.StdinPipe()
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	go func() {
+	// 		io.Copy(io.MultiWriter(stdin, os.Stderr), this.Stdin())
+	// 	}()
+	// }
+
+	if this.Task.Stdin != nil {
+		sub, err := this.Task.Stdin.Broker().PubSub(this.Id, this.options)
+		if err != nil {
+			return nil, err
+		}
+		stdin, err := sub.Subscribe(*this.Task.Stdin)
+		if err != nil {
+			return nil, err
+		}
+		wr, err := cmd.StdinPipe()
+		if err != nil {
+			return nil, err
+		}
+		go func() {
+			// We need to do some special processing of input so that we can
+			// terminate a session. Otherwise, this will just loop forever
+			// because the pubsub topic will not go away -- even if it's a unique topic.
+			for {
+				m := <-stdin
+				fmt.Printf(">> %s", string(m))
+				switch {
+				case bytes.Equal(m, []byte("@bye")):
+					wr.Close()
+					return
+				default:
+					wr.Write(m) // Need newline for shell to interpret
+				}
+			}
+		}()
+	}
+	cmd.Stdout = this.Stdout()
+	cmd.Stderr = this.Stderr()
+
+	process_done := make(chan error)
+	go func() {
+		cmd.Start()
+
+		// Wait for cmd to complete even if we have no more stdout/stderr
+		if err := cmd.Wait(); err != nil {
+			this.Error(err.Error())
+			process_done <- err
+			return
+		}
+
+		ps := cmd.ProcessState
+		if ps == nil {
+			this.Error(ErrCommandUnknown.Error())
+			process_done <- ErrCommandUnknown
+			return
+		}
+
+		glog.Infoln("Process pid=", ps.Pid(), "Exited=", ps.Exited(), "Success=", ps.Success())
+
+		if !ps.Success() {
+			this.Error(ErrExecFailed.Error())
+			process_done <- ErrExecFailed
+			return
+		} else {
+			this.Success(this.GetCapturedStdout())
+			process_done <- nil
+			return
+		}
+	}()
+
+	return process_done, nil
 }
 
 func (this *Runtime) start_streams() (stdout, stderr chan<- []byte, err error) {

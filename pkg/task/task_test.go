@@ -13,7 +13,8 @@ import (
 
 var (
 	local_endpoint = "iot.eclipse.org:1883"
-	topic          = pubsub.Topic("mqtt://iot.eclipse.org:1883/this/is/a/test")
+	topic          = pubsub.Topic("mqtt://iot.eclipse.org:1883/test.com/task/test")
+	topicIn        = pubsub.Topic("mqtt://iot.eclipse.org:1883/test.com/input")
 )
 
 func TestTask(t *testing.T) { TestingT(t) }
@@ -35,13 +36,13 @@ func (suite *TaskTests) SetUpSuite(c *C) {
 
 func (suite *TaskTests) TestTaskSuccess(c *C) {
 	now := fmt.Sprintf("%d", time.Now().Unix())
-	info := registry.Path("/ops-test/task/test/" + now)
-	output := registry.Path("/ops-test/task/test/" + now + "/out")
+	info := registry.Path("/unit-test/task-test/task/test/" + now)
+	output := registry.Path("/unit-test/task-test/task/test/" + now + "/out")
 	stdout := &topic
 	stderr := &topic
 	status := &topic
-	success := registry.Path("/ops-test/task/test/" + now + "/done")
-	error := registry.Path("/ops-test/task/test/" + now + "/error")
+	success := registry.Path("/unit-test/task-test/task/test/" + now + "/done")
+	error := registry.Path("/unit-test/task-test/task/test/" + now + "/error")
 
 	z, err := zk.Connect([]string{"localhost:2181"}, 5*time.Second)
 	c.Assert(err, Equals, nil)
@@ -100,13 +101,13 @@ func (suite *TaskTests) TestTaskSuccess(c *C) {
 
 func (suite *TaskTests) TestTaskError(c *C) {
 	now := fmt.Sprintf("%d", time.Now().Unix())
-	info := registry.Path("/ops-test/task/test2/" + now)
-	output := registry.Path("/ops-test/task/test2/" + now + "/out")
+	info := registry.Path("/unit-test/task-test/task/test2/" + now)
+	output := registry.Path("/unit-test/task-test/task/test2/" + now + "/out")
 	stdout := &topic
 	stderr := &topic
 	status := &topic
-	success := registry.Path("/ops-test/task/test2/" + now + "/done")
-	error := registry.Path("/ops-test/task/test2/" + now + "/error")
+	success := registry.Path("/unit-test/task-test/task/test2/" + now + "/done")
+	error := registry.Path("/unit-test/task-test/task/test2/" + now + "/error")
 
 	z, err := zk.Connect([]string{"localhost:2181"}, 5*time.Second)
 	c.Assert(err, Equals, nil)
@@ -127,10 +128,9 @@ func (suite *TaskTests) TestTaskError(c *C) {
 	sub, err := suite.mq.Subscribe(topic)
 	c.Assert(err, Equals, nil)
 	go func() {
-
 		for {
 			m := <-sub
-			c.Log("@@@@message=", string(m))
+			c.Log(string(m))
 		}
 	}()
 
@@ -157,4 +157,103 @@ func (suite *TaskTests) TestTaskError(c *C) {
 	e := zk.GetString(z, error)
 	c.Assert(e, Not(Equals), nil)
 	c.Log("e object=", *e)
+}
+
+func (suite *TaskTests) TestTaskExec(c *C) {
+	now := fmt.Sprintf("%d", time.Now().Unix())
+	info := registry.Path("/unit-test/task-test/task/testExec/" + now)
+	output := registry.Path("/unit-test/task-test/task/testExec/" + now + "/out")
+	stdout := &topic
+	status := &topic
+	success := registry.Path("/unit-test/task-test/task/testExec/" + now + "/done")
+	error := registry.Path("/unit-test/task-test/task/testExec/" + now + "/error")
+
+	exec := Cmd{
+		Path: "ls",
+		Args: []string{"-al"},
+		Env:  []string{"FOO=foo"},
+	}
+	z, err := zk.Connect([]string{"localhost:2181"}, 5*time.Second)
+	c.Assert(err, Equals, nil)
+
+	task, err := (&Task{
+		Info:    info,
+		Success: success,
+		Error:   error,
+		Output:  &output,
+		Stdout:  stdout,
+		Status:  *status,
+		Exec:    &exec,
+	}).Init(z)
+	c.Assert(err, Equals, nil)
+	c.Log("task=", task)
+
+	task.CaptureStdout()
+
+	done, err := task.Start()
+
+	c.Assert(err, Equals, nil)
+
+	result := <-done
+	c.Assert(result, Equals, nil)
+
+	buff := task.GetCapturedStdout()
+	c.Log("Output=", string(buff))
+
+}
+
+func (suite *TaskTests) TestTaskExecStdin(c *C) {
+	now := fmt.Sprintf("%d", time.Now().Unix())
+	info := registry.Path("/unit-test/task-test/task/testExec/" + now)
+	output := registry.Path("/unit-test/task-test/task/testExec/" + now + "/out")
+	stdin := &topicIn
+	stdout := &topic
+	status := &topic
+	success := registry.Path("/unit-test/task-test/task/testExec/" + now + "/done")
+	error := registry.Path("/unit-test/task-test/task/testExec/" + now + "/error")
+
+	exec := Cmd{
+		Path: "/bin/bash",
+		Args: []string{},
+		Env:  []string{"FOO=foo"},
+	}
+	z, err := zk.Connect([]string{"localhost:2181"}, 5*time.Second)
+	c.Assert(err, Equals, nil)
+
+	task, err := (&Task{
+		Info:    info,
+		Success: success,
+		Error:   error,
+		Output:  &output,
+		Stdout:  stdout,
+		Stdin:   stdin,
+		Status:  *status,
+		Exec:    &exec,
+	}).Init(z)
+	c.Assert(err, Equals, nil)
+	c.Log("task=", task)
+
+	task.CaptureStdout()
+
+	done, err := task.Start()
+
+	c.Assert(err, Equals, nil)
+
+	// This will block while we wait for stdin
+	pub, err := topicIn.Broker().PubSub("")
+	c.Assert(err, Equals, nil)
+	pw := pubsub.GetWriter(topicIn, pub)
+
+	pw.Write([]byte("date\n"))
+	pw.Write([]byte("ls -al\n"))
+	pw.Write([]byte("pwd\n"))
+	pw.Write([]byte("@bye"))
+
+	c.Log("Should complete here'")
+	result := <-done
+	c.Assert(result, Equals, nil)
+
+	buff := task.GetCapturedStdout()
+	c.Log("Output=", string(buff))
+
 }

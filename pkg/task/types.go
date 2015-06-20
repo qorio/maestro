@@ -1,9 +1,15 @@
 package task
 
 import (
+	"errors"
 	"github.com/qorio/maestro/pkg/pubsub"
 	"github.com/qorio/maestro/pkg/registry"
 	"time"
+)
+
+var (
+	ErrCommandUnknown = errors.New("command-unknown")
+	ErrExecFailed     = errors.New("exec-failed")
 )
 
 type Orchestration struct {

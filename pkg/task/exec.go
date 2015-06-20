@@ -2,10 +2,28 @@ package task
 
 import (
 	"bytes"
+	"encoding/gob"
 	"text/template"
 )
 
-func apply(s string, ctx map[string]string, funcs template.FuncMap) (string, error) {
+/// Makes a deep copy
+func (this *Cmd) Copy() (*Cmd, error) {
+	var buff bytes.Buffer
+	enc := gob.NewEncoder(&buff)
+	dec := gob.NewDecoder(&buff)
+	err := enc.Encode(this)
+	if err != nil {
+		return nil, err
+	}
+	copy := new(Cmd)
+	err = dec.Decode(copy)
+	if err != nil {
+		return nil, err
+	}
+	return copy, nil
+}
+
+func apply(s string, ctx map[string]interface{}, funcs template.FuncMap) (string, error) {
 	t, err := template.New(s).Parse(s)
 	if funcs != nil {
 		t.Funcs(funcs)
@@ -26,9 +44,12 @@ func apply(s string, ctx map[string]string, funcs template.FuncMap) (string, err
 // the format is same as template expressions e.g. {{.RUN_BINARY}}
 // This allows the environment to be passed to the command even if the child process
 // does not look at environment variables.
-func (this *Cmd) ApplySubstitutions(env map[string]string, funcs template.FuncMap) (*Cmd, error) {
+func (this *Cmd) ApplySubstitutions(env map[string]interface{}, funcs template.FuncMap) (*Cmd, error) {
 
-	applied := *this // first copy
+	applied, err := this.Copy()
+	if err != nil {
+		return nil, err
+	}
 
 	if sub, err := apply(this.Dir, env, nil); err != nil {
 		return nil, err
@@ -42,8 +63,7 @@ func (this *Cmd) ApplySubstitutions(env map[string]string, funcs template.FuncMa
 		applied.Path = sub
 	}
 
-	for i, arg := range this.Args {
-		applied.Args = make([]string, len(this.Args))
+	for i, arg := range applied.Args {
 		if sub, err := apply(arg, env, funcs); err != nil {
 			return nil, err
 		} else {
@@ -51,11 +71,12 @@ func (this *Cmd) ApplySubstitutions(env map[string]string, funcs template.FuncMa
 		}
 	}
 
-	list := []string{}
-	for k, v := range env {
-		list = append(list, k+"="+v)
+	for i, kv := range applied.Env {
+		if sub, err := apply(kv, env, funcs); err != nil {
+			return nil, err
+		} else {
+			applied.Env[i] = sub
+		}
 	}
-	applied.Env = list
-
-	return &applied, nil
+	return applied, nil
 }
