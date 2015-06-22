@@ -45,9 +45,13 @@ NOW:=`date -u +%Y-%m-%d_%H-%M-%S`
 LDFLAGS:=-X main.BUILD_VERSION $(TAG) -X main.BUILD_TIMESTAMP $(NOW)
 TARGET:=main/zkstart.go
 
+pubsubsh:
+	echo "Building pubsubsh"
+	godep go build -o bin/pubsubsh -ldflags "$(LDFLAGS)" main/pubsubsh.go
+
 zkstart:
 	echo "Building zkstart"
-	godep go build -o bin/zkstart -ldflags "$(LDFLAGS)" "$(TARGET)"
+	godep go build -o bin/zkstart -ldflags "$(LDFLAGS)" main/zkstart.go
 
 dist-clean:
 	rm -rf dist
