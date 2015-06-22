@@ -316,7 +316,7 @@ func (this *Runtime) exec() (chan error, error) {
 				m := <-stdin
 				fmt.Printf(">> %s", string(m))
 				switch {
-				case bytes.Equal(m, []byte("#bye")):
+				case strings.Index(string(m), "#bye") == 0:
 					wr.Close()
 					return
 				default:
