@@ -40,7 +40,8 @@ type Runtime struct {
 	lock    sync.Mutex
 	error   error
 
-	stdoutBuff *bytes.Buffer
+	stdoutBuff       *bytes.Buffer
+	stdinInterceptor func(string) (string, bool)
 }
 
 func (this *Task) Copy() (*Task, error) {
@@ -100,6 +101,11 @@ func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
 		task.stderr = make(chan []byte)
 	}
 
+	// Default interceptor
+	task.stdinInterceptor = func(in string) (string, bool) {
+		return in, strings.Index(in, "#bye") != 0
+	}
+
 	now := time.Now()
 	task.Stat.Started = &now
 
@@ -131,6 +137,10 @@ func (this *Runtime) Stop() {
 	this.status <- nil
 
 	this.done = true
+}
+
+func (this *Runtime) StdinInterceptor(f func(string) (string, bool)) {
+	this.stdinInterceptor = f
 }
 
 func (this *Runtime) Stdin() io.Reader {
@@ -308,19 +318,19 @@ func (this *Runtime) exec() (chan error, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		go func() {
 			// We need to do some special processing of input so that we can
 			// terminate a session. Otherwise, this will just loop forever
 			// because the pubsub topic will not go away -- even if it's a unique topic.
 			for {
 				m := <-stdin
-				fmt.Printf(">> %s", string(m))
-				switch {
-				case strings.Index(string(m), "#bye") == 0:
+				if l, ok := this.stdinInterceptor(string(m)); ok {
+					fmt.Printf(">> %s", l)
+					wr.Write([]byte(l))
+				} else {
 					wr.Close()
 					return
-				default:
-					wr.Write(m) // Need newline for shell to interpret
 				}
 			}
 		}()
