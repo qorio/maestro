@@ -18,7 +18,7 @@ func (suite *TypesTests) TestUnmarshalMarshal(c *C) {
 
 	input := `{
 		"info" : "/{{.Domain}}/deployment/{{.Id}}/db-migrate",
-		"start" : {
+		"trigger" : {
                     "registry": {
 		        "timeout" : "300s",
                         "members" : {

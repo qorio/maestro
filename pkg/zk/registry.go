@@ -1,7 +1,6 @@
 package zk
 
 import (
-	"bytes"
 	"errors"
 	"github.com/golang/glog"
 	"github.com/qorio/maestro/pkg/registry"
@@ -108,7 +107,7 @@ func (this *Conditions) Init(zkc ZK) *Conditions {
 		w := NewChange(*this.Change, zkc)
 		w.Apply(func(k registry.Key, before, after *Node) bool {
 			glog.V(100).Infoln("Change:", k.Path(), "Before=", before, "After=", after)
-			return !bytes.Equal(before.Value, after.Value)
+			return true
 		})
 		this.watches[w] = false
 	}

@@ -37,7 +37,6 @@ func (suite *TaskTests) SetUpSuite(c *C) {
 func (suite *TaskTests) TestTaskSuccess(c *C) {
 	now := fmt.Sprintf("%d", time.Now().Unix())
 	info := registry.Path("/unit-test/task-test/task/test/" + now)
-	output := registry.Path("/unit-test/task-test/task/test/" + now + "/out")
 	stdout := &topic
 	stderr := &topic
 	status := &topic
@@ -51,7 +50,6 @@ func (suite *TaskTests) TestTaskSuccess(c *C) {
 		Info:    info,
 		Success: success,
 		Error:   error,
-		Output:  &output,
 		Stdout:  stdout,
 		Stderr:  stderr,
 		Status:  *status,
@@ -85,12 +83,7 @@ func (suite *TaskTests) TestTaskSuccess(c *C) {
 
 	err = task.Success(task.Task)
 	c.Assert(err, Equals, nil)
-	c.Assert(task.Running(), Equals, false)
-
-	// Check for the value at the output path
-	v := zk.GetString(z, output)
-	c.Assert(v, Not(Equals), nil)
-	c.Log("v=", *v)
+	c.Assert(task.Running(), Equals, true)
 
 	// We expect the success path to exist
 	s := zk.GetString(z, success)
@@ -102,7 +95,6 @@ func (suite *TaskTests) TestTaskSuccess(c *C) {
 func (suite *TaskTests) TestTaskError(c *C) {
 	now := fmt.Sprintf("%d", time.Now().Unix())
 	info := registry.Path("/unit-test/task-test/task/test2/" + now)
-	output := registry.Path("/unit-test/task-test/task/test2/" + now + "/out")
 	stdout := &topic
 	stderr := &topic
 	status := &topic
@@ -116,7 +108,6 @@ func (suite *TaskTests) TestTaskError(c *C) {
 		Info:    info,
 		Success: success,
 		Error:   error,
-		Output:  &output,
 		Stdout:  stdout,
 		Stderr:  stderr,
 		Status:  *status,
@@ -145,11 +136,10 @@ func (suite *TaskTests) TestTaskError(c *C) {
 
 	err = task.Error(task.Task)
 	c.Assert(err, Equals, nil)
-	c.Assert(task.Running(), Equals, false)
+	c.Assert(task.Running(), Equals, true)
 
-	// Check for the value at the output path
-	v := zk.GetString(z, output)
-	c.Assert(v, Equals, (*string)(nil))
+	task.Stop()
+	c.Assert(task.Running(), Equals, false)
 
 	s := zk.GetString(z, success)
 	c.Assert(s, Equals, (*string)(nil))
@@ -162,7 +152,6 @@ func (suite *TaskTests) TestTaskError(c *C) {
 func (suite *TaskTests) TestTaskExec(c *C) {
 	now := fmt.Sprintf("%d", time.Now().Unix())
 	info := registry.Path("/unit-test/task-test/task/testExec/" + now)
-	output := registry.Path("/unit-test/task-test/task/testExec/" + now + "/out")
 	stdout := &topic
 	status := &topic
 	success := registry.Path("/unit-test/task-test/task/testExec/" + now + "/done")
@@ -180,10 +169,9 @@ func (suite *TaskTests) TestTaskExec(c *C) {
 		Info:    info,
 		Success: success,
 		Error:   error,
-		Output:  &output,
 		Stdout:  stdout,
 		Status:  *status,
-		Exec:    &exec,
+		Cmd:     &exec,
 	}).Init(z)
 	c.Assert(err, Equals, nil)
 	c.Log("task=", task)
@@ -202,15 +190,14 @@ func (suite *TaskTests) TestTaskExec(c *C) {
 
 }
 
-func (suite *TaskTests) TestTaskExecStdin(c *C) {
+func (suite *TaskTests) TestTaskCmdStdin(c *C) {
 	now := fmt.Sprintf("%d", time.Now().Unix())
-	info := registry.Path("/unit-test/task-test/task/testExec/" + now)
-	output := registry.Path("/unit-test/task-test/task/testExec/" + now + "/out")
+	info := registry.Path("/unit-test/task-test/task/testCmd/" + now)
 	stdin := &topicIn
 	stdout := &topic
 	status := &topic
-	success := registry.Path("/unit-test/task-test/task/testExec/" + now + "/done")
-	error := registry.Path("/unit-test/task-test/task/testExec/" + now + "/error")
+	success := registry.Path("/unit-test/task-test/task/testCmd/" + now + "/done")
+	error := registry.Path("/unit-test/task-test/task/testCmd/" + now + "/error")
 
 	exec := Cmd{
 		Path: "/bin/bash",
@@ -224,11 +211,10 @@ func (suite *TaskTests) TestTaskExecStdin(c *C) {
 		Info:    info,
 		Success: success,
 		Error:   error,
-		Output:  &output,
 		Stdout:  stdout,
 		Stdin:   stdin,
 		Status:  *status,
-		Exec:    &exec,
+		Cmd:     &exec,
 	}).Init(z)
 	c.Assert(err, Equals, nil)
 	c.Log("task=", task)
@@ -247,7 +233,7 @@ func (suite *TaskTests) TestTaskExecStdin(c *C) {
 	pw.Write([]byte("date\n"))
 	pw.Write([]byte("ls -al\n"))
 	pw.Write([]byte("pwd\n"))
-	pw.Write([]byte("@bye"))
+	pw.Write([]byte("#bye"))
 
 	c.Log("Should complete here'")
 	result := <-done

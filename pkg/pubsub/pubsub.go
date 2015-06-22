@@ -89,6 +89,10 @@ func (b Broker) String() string {
 
 type Topic string
 
+func (t Topic) Sub(topic string) Topic {
+	return Topic(string(t) + "/" + topic)
+}
+
 func (t Topic) Broker() Broker {
 	return Broker(TopicRegex.ReplaceAllString(string(t), "${protocol}://${host}:${port}"))
 }

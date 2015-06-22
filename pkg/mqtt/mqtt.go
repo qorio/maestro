@@ -9,6 +9,7 @@ import (
 
 var (
 	ErrNotSupportedProtocol = errors.New("not-supported-protocol")
+	ErrConnect              = errors.New("error-connect")
 )
 
 const (
@@ -40,7 +41,7 @@ func Connect(id, addr string, options ...interface{}) (pubsub.PubSub, error) {
 	wait := c.Connect()
 	ready := wait.Wait()
 	if !ready {
-		return nil, errors.New("cannot-connect")
+		return nil, ErrConnect
 	}
 	return &Client{
 		QoS:              QOS_ZERO,

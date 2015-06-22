@@ -38,26 +38,23 @@ type Cmd struct {
 type TaskName string
 type Task struct {
 	// Required
-	Id      string        `json:"id"`
-	Name    TaskName      `json:"name"`
+	Id   string   `json:"id"`
+	Name TaskName `json:"name"`
+
 	Info    registry.Path `json:"info"`
 	Success registry.Path `json:"success"`
 	Error   registry.Path `json:"error"`
-	Status  pubsub.Topic  `json:"status"`
 
 	// Conditional execution
-	Trigger *Trigger `json:"start,omitempty"`
-
-	// registry.Paths for storing input/output
-	Input  *registry.Path `json:"input,omitempty"`
-	Output *registry.Path `json:"output,omitempty"`
+	Trigger *Trigger `json:"trigger,omitempty"`
 
 	// Topics (e.g. mqtt://localhost:1281/aws-cli/124/stdout)
-	Stdin  *pubsub.Topic `json:"stdin_topic,omitempty"`
-	Stdout *pubsub.Topic `json:"stdout_topic,omitempty"`
-	Stderr *pubsub.Topic `json:"stderr_topic,omitempty"`
+	Status pubsub.Topic  `json:"status"`
+	Stdin  *pubsub.Topic `json:"stdin,omitempty"`
+	Stdout *pubsub.Topic `json:"stdout,omitempty"`
+	Stderr *pubsub.Topic `json:"stderr,omitempty"`
 
-	Exec *Cmd `json:"override,omitempty"`
+	Cmd *Cmd `json:"cmd,omitempty"`
 
 	Stat TaskStat
 }

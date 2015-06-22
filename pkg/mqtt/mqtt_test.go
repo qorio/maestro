@@ -16,8 +16,14 @@ var _ = Suite(&MqttTests{})
 
 var (
 	local_endpoint = "iot.eclipse.org:1883" //"192.168.59.103:1883"
-	topic          = pubsub.Topic("mqtt:///this-is-a-test")
+	bad_endpoint   = "iot.ecpse.org:1333"   //"192.168.59.103:1883"
+	topic          = pubsub.Topic("mqtt://iot.eclipse.org:1883/this-is-a-test")
 )
+
+func (suite *MqttTests) TestConnectBadEndpoint(c *C) {
+	_, err := Connect("test", bad_endpoint)
+	c.Assert(err, Not(Equals), ErrConnect)
+}
 
 func (suite *MqttTests) TestConnectDisconnect(c *C) {
 	cl, err := Connect("test", local_endpoint)
