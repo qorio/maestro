@@ -142,7 +142,7 @@ upstream backend {
 server {
 
        listen 443;
-       server_name *.infradash.com;
+       server_name *.{{inline "env:///{{.Domain}}/{{.Service}}/env/DOMAIN"}};
 
        ssl on;
        ssl_certificate {{file "env:///code.qor.io/ssl/qor.io.cert"}};
@@ -209,6 +209,9 @@ func (suite *TestSuiteFetch) TestFetchAndExecuteTemplateNginxConf(c *C) {
 
 	// Reference node
 	zk.CreateOrSet(suite.zc, registry.Path("/test.com/testapp"), "env:///test.com/testapp/v1/containers")
+
+	// Inline node
+	zk.CreateOrSet(suite.zc, registry.Path("/test.com/testapp/env/DOMAIN"), "test.com")
 
 	c.Log("Data inserted into zookeeper")
 
