@@ -54,7 +54,8 @@ type Task struct {
 	Stdout *pubsub.Topic `json:"stdout,omitempty"`
 	Stderr *pubsub.Topic `json:"stderr,omitempty"`
 
-	Cmd *Cmd `json:"cmd,omitempty"`
+	Cmd  *Cmd `json:"cmd,omitempty"`
+	Runs int  `json:"runs,omitempty"`
 
 	Stat TaskStat
 }
