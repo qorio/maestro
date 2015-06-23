@@ -34,6 +34,15 @@ func (suite *TestSuiteFetch) TearDownSuite(c *C) {
 	suite.zc.Close()
 }
 
+func (suite *TestSuiteFetch) TestFetchUrl(c *C) {
+	zk.CreateOrSet(suite.zc, "/unit-test/object/1", "object1")
+	zk.CreateOrSet(suite.zc, "/unit-test/ref", "env:///unit-test/object/1")
+
+	value, _, err := FetchUrl("env:///unit-test/ref", nil, suite.zc)
+	c.Assert(err, Equals, nil)
+	c.Assert(value, Equals, "object1")
+}
+
 func (suite *TestSuiteFetch) TestFetchAndExecuteTemplate(c *C) {
 
 	list := make([]interface{}, 0)

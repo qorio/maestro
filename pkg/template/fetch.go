@@ -91,11 +91,12 @@ func FetchUrl(urlRef string, headers map[string]string, zc ...zk.ZK) (body strin
 		path := urlRef[len("env://"):]
 		n, err := zc[0].Get(path)
 		glog.Infoln("Content from environment: Path=", urlRef, "Err=", err)
+		// try resolve
+		_, v, err := zk.Resolve(zc[0], registry.Path(path), n.GetValueString())
 		if err != nil {
 			return "", "", err
-		} else {
-			return n.GetValueString(), "text/plain", nil
 		}
+		return v, "text/plain", nil
 	}
 	return "", "", ErrNotSupportedProtocol
 }
