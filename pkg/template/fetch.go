@@ -20,6 +20,20 @@ var (
 	ErrNotSupportedProtocol = errors.New("protocol-not-supported")
 )
 
+func ApplyTemplate(body string, context interface{}) (string, error) {
+	t, err := template.New(body).Parse(body)
+	if err != nil {
+		return "", err
+	}
+
+	var buff bytes.Buffer
+	if err := t.Execute(&buff, context); err != nil {
+		return "", err
+	} else {
+		return buff.String(), nil
+	}
+}
+
 func ParseHostPort(value string) (host, port string) {
 	parts := strings.Split(value, ":")
 	if len(parts) == 2 {
