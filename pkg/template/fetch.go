@@ -190,18 +190,10 @@ func ExecuteTemplateUrl(zc zk.ZK, url string, authToken string, data interface{}
 
 // Supports references -- if the value of the node is env:///.. then resolve the reference.
 func hostport_list_from_zk(zc zk.ZK, containers_path, service_port string) ([]interface{}, error) {
-	n, err := zc.Get(containers_path)
+
+	n, err := zk.Follow(zc, registry.Path(containers_path))
 	if err != nil {
 		return nil, err
-	}
-
-	// try resolve
-	p, _, err := zk.Resolve(zc, registry.Path(containers_path), n.GetValueString())
-	if p.Path() != containers_path {
-		n, err = zc.Get(p.Path())
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	all, err := n.VisitChildrenRecursive(func(z *zk.Node) bool {
