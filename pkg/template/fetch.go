@@ -18,6 +18,7 @@ import (
 
 var (
 	ErrNotSupportedProtocol = errors.New("protocol-not-supported")
+	ErrNotConnectedToZk     = errors.New("not-connected-to-zk")
 )
 
 func ApplyTemplate(body string, context interface{}) (string, error) {
@@ -84,12 +85,16 @@ func FetchUrl(urlRef string, headers map[string]string, zc ...zk.ZK) (body strin
 		} else {
 			return string(buff), "text/plain", nil
 		}
+
 	case strings.Index(urlRef, "env://") == 0:
 		if len(zc) == 0 {
-			return "", "", errors.New("no-zk-client")
+			return "", "", ErrNotConnectedToZk
 		}
 		path := urlRef[len("env://"):]
 		n, err := zc[0].Get(path)
+		if err != nil {
+			return "", "", err
+		}
 		glog.Infoln("Content from environment: Path=", urlRef, "Err=", err)
 		// try resolve
 		_, v, err := zk.Resolve(zc[0], registry.Path(path), n.GetValueString())
