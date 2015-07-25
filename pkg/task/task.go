@@ -61,6 +61,23 @@ func (this *Task) Copy() (*Task, error) {
 }
 
 func (this *Task) Validate() error {
+
+	if this.ExecOnly {
+		switch {
+		case this.Id == "":
+			return ErrBadConfig
+		case this.Cmd == nil:
+			return ErrBadConfig
+		default:
+			_, err := exec.LookPath(this.Cmd.Path)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// If we are in Orchestration mode then a lot more needs to be set
 	switch {
 	case !this.Info.Valid():
 		return ErrBadConfig

@@ -43,31 +43,27 @@ test-all:
 TAG:=`git describe --abbrev=0 --tags`
 NOW:=`date -u +%Y-%m-%d_%H-%M-%S`
 LDFLAGS:=-X main.BUILD_VERSION $(TAG) -X main.BUILD_TIMESTAMP $(NOW)
-TARGET:=main/zkstart.go
+TARGET:=main/pubsubsh.go
 
 pubsubsh:
 	echo "Building pubsubsh"
 	godep go build -o bin/pubsubsh -ldflags "$(LDFLAGS)" main/pubsubsh.go
 
-zkstart:
-	echo "Building zkstart"
-	godep go build -o bin/zkstart -ldflags "$(LDFLAGS)" main/zkstart.go
-
 dist-clean:
 	rm -rf dist
-	rm -f zkstart-linux-*.tar.gz
-	rm -f zkstart-darwin-*.tar.gz
+	rm -f pubsubsh-linux-*.tar.gz
+	rm -f pubsubsh-darwin-*.tar.gz
 
 dist-linux: dist-clean
-	mkdir -p dist/linux/amd64 && GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" "$(TARGET)" -o dist/linux/amd64/zkstart
-	mkdir -p dist/linux/i386  && GOOS=linux GOARCH=386 go build -ldflags "$(LDFLAGS)" "$(TARGET)" -o dist/linux/i386/zkstart
+	mkdir -p dist/linux/amd64 && GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" "$(TARGET)" -o dist/linux/amd64/pubsubsh
+	mkdir -p dist/linux/i386  && GOOS=linux GOARCH=386 go build -ldflags "$(LDFLAGS)" "$(TARGET)" -o dist/linux/i386/pubsubsh
 
 dist-osx: dist-clean
-	mkdir -p dist/darwin/amd64 && GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" "$(TARGET)" -o dist/darwin/amd64/zkstart
-	#mkdir -p dist/darwin/i386  && GOOS=darwin GOARCH=386 go build -ldflags "$(LDFLAGS)" "$(TARGET)" -o dist/darwin/i386/zkstart
+	mkdir -p dist/darwin/amd64 && GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" "$(TARGET)" -o dist/darwin/amd64/pubsubsh
+#mkdir -p dist/darwin/i386  && GOOS=darwin GOARCH=386 go build -ldflags "$(LDFLAGS)" "$(TARGET)" -o dist/darwin/i386/pubsubsh
 
 release: dist-linux dist-osx
-	tar -cvzf zkstart-linux-amd64-$(TAG).tar.gz -C dist/linux/amd64 zkstart
-	tar -cvzf zkstart-linux-i386-$(TAG).tar.gz -C dist/linux/i386 zkstart
-	tar -cvzf zkstart-darwin-amd64-$(TAG).tar.gz -C dist/darwin/amd64 zkstart
-	tar -cvzf zkstart-darwin-i386-$(TAG).tar.gz -C dist/darwin/i386 zkstart
+	tar -cvzf pubsubsh-linux-amd64-$(TAG).tar.gz -C dist/linux/amd64 pubsubsh
+	tar -cvzf pubsubsh-linux-i386-$(TAG).tar.gz -C dist/linux/i386 pubsubsh
+	tar -cvzf pubsubsh-darwin-amd64-$(TAG).tar.gz -C dist/darwin/amd64 pubsubsh
+	tar -cvzf pubsubsh-darwin-i386-$(TAG).tar.gz -C dist/darwin/i386 pubsubsh

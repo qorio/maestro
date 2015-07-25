@@ -34,6 +34,25 @@ func (suite *TaskTests) SetUpSuite(c *C) {
 	suite.mq = mq
 }
 
+func (suite *TaskTests) TestExecOnly(c *C) {
+	t := Task{
+		Id: "test",
+		Cmd: &Cmd{
+			Path: "echo",
+			Args: []string{"hello"},
+		},
+		ExecOnly: true,
+	}
+
+	runtime, err := t.Init(nil)
+	c.Assert(err, Equals, nil)
+	runtime.CaptureStdout()
+
+	done, err := runtime.Start()
+	c.Assert(err, Equals, nil)
+	c.Assert(done, Not(Equals), nil)
+}
+
 func (suite *TaskTests) TestTaskSuccess(c *C) {
 	now := fmt.Sprintf("%d", time.Now().Unix())
 	info := registry.Path("/unit-test/task-test/task/test/" + now)

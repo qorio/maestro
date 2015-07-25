@@ -41,7 +41,12 @@ type Cmd struct {
 type TaskName string
 type Task struct {
 	// Required
-	Id   string   `json:"id"`
+	Id  string `json:"id"`
+	Cmd *Cmd   `json:"cmd,omitempty"`
+
+	// If this is set to true then we only require id and command to be set
+	ExecOnly bool `json:"exec_only"`
+
 	Name TaskName `json:"name"`
 
 	Info    registry.Path `json:"info"`
@@ -59,8 +64,7 @@ type Task struct {
 	Stdout *pubsub.Topic `json:"stdout,omitempty"`
 	Stderr *pubsub.Topic `json:"stderr,omitempty"`
 
-	Cmd  *Cmd `json:"cmd,omitempty"`
-	Runs int  `json:"runs,omitempty"`
+	Runs int `json:"runs,omitempty"`
 
 	Stat TaskStat
 }
