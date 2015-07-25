@@ -11,11 +11,6 @@
 			"Rev": "35bc42037350f0078e3c974c6ea690f1926603ab"
 		},
 		{
-			"ImportPath": "code.google.com/p/go.crypto/ssh",
-			"Comment": "null-236",
-			"Rev": "69e2a90ed92d03812364aeb947b7068dc42e561e"
-		},
-		{
 			"ImportPath": "code.google.com/p/go.net/websocket",
 			"Comment": "null-240",
 			"Rev": "937a34c9de13c766c814510f76bca091dee06028"
@@ -37,6 +32,10 @@
 		{
 			"ImportPath": "github.com/golang/glog",
 			"Rev": "44145f04b68cf362d9c4df2182967c2275eaefed"
+		},
+		{
+			"ImportPath": "github.com/qorio/omni/common",
+			"Rev": "dad14facaf4040071c7bd8c99019445ed6322032"
 		},
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
