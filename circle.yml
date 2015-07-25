@@ -28,8 +28,8 @@ dependencies:
     - go get github.com/docker/docker/pkg/units
 
   post:
-    - make zkstart
-    - cp ./bin/zkstart $CIRCLE_ARTIFACTS
+    - make release
+    - cp ./bin/pubsubsh $CIRCLE_ARTIFACTS
 
 ## Customize test commands
 test:
