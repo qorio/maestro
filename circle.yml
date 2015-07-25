@@ -28,7 +28,7 @@ dependencies:
     - go get github.com/docker/docker/pkg/units
 
   post:
-    - make release
+    - make pubsubsh
     - cp ./bin/pubsubsh $CIRCLE_ARTIFACTS
 
 ## Customize test commands
