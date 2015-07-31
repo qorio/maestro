@@ -279,12 +279,13 @@ func (this *Runtime) set_defaults() {
 }
 
 func (this *Runtime) Start() (chan error, error) {
-
 	this.set_defaults()
 
 	if _, _, err := this.start_streams(); err != nil {
 		return nil, err
 	}
+
+	this.Log(fmt.Sprintf("****,[,%d,%s,%s", time.Now().Unix(), this.Task.Name, this.Task.PrintPre))
 
 	if err := this.block_on_triggers(); err == zk.ErrTimeout {
 		return nil, ErrTimeout
@@ -311,6 +312,7 @@ func (this *Runtime) block_on_triggers() error {
 	if this.Trigger.Registry != nil {
 		trigger := zk.NewConditions(*this.Trigger.Registry, this.zk)
 		// So now just block until the condition is true
+		this.Log("Waiting for trigger.")
 		return trigger.Wait()
 	}
 
@@ -460,6 +462,7 @@ func (this *Runtime) start_streams() (stdout, stderr chan<- []byte, err error) {
 }
 
 func (this *Runtime) Success(output interface{}) error {
+	defer this.Log(fmt.Sprintf("****,],%d,%s,%s", time.Now().Unix(), this.Task.Name, this.Task.PrintPost))
 
 	if this.zk == nil {
 		glog.Infoln("Not connected to zk.  Output not recorded")
@@ -505,6 +508,14 @@ func (this *Runtime) Success(output interface{}) error {
 }
 
 func (this *Runtime) Error(error interface{}) error {
+	defer func() {
+		if this.Task.PrintErrWarning {
+			this.Log(fmt.Sprintf("????,],%d,%s,%s", time.Now().Unix(), this.Task.Name, this.Task.PrintErr))
+		} else {
+			this.Log(fmt.Sprintf("!!!!,],%d,%s,%s", time.Now().Unix(), this.Task.Name, this.Task.PrintErr))
+		}
+	}()
+
 	if this.zk == nil {
 		glog.Infoln("Not connected to zk.  Output not recorded")
 		return nil

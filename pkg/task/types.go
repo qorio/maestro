@@ -12,16 +12,16 @@ var (
 	ErrExecFailed     = errors.New("exec-failed")
 )
 
-type Orchestration struct {
-	Id          string            `json:"id,omitempty"`
-	Name        string            `json:"name,omitempty"`
-	Label       string            `json:"label,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Log         pubsub.Topic      `json:"log,omitempty"`
-	StartTime   *time.Time        `json:"start_time,omitempty"`
-	Context     registry.Path     `json:"context,omitempty"`
-	Tasks       map[TaskName]Task `json:"tasks,omitempty"`
-}
+// type Orchestration struct {
+// 	Id          string            `json:"id,omitempty"`
+// 	Name        string            `json:"name,omitempty"`
+// 	Label       string            `json:"label,omitempty"`
+// 	Description string            `json:"description,omitempty"`
+// 	Log         pubsub.Topic      `json:"log,omitempty"`
+// 	StartTime   *time.Time        `json:"start_time,omitempty"`
+// 	Context     registry.Path     `json:"context,omitempty"`
+// 	Tasks       map[TaskName]Task `json:"tasks,omitempty"`
+// }
 
 type CronExpression string
 
@@ -67,6 +67,11 @@ type Task struct {
 	Runs int `json:"runs,omitempty"`
 
 	Stat TaskStat
+
+	PrintPre        string `json:"print_pre,omitempty"`
+	PrintPost       string `json:"print_post,omitempty"`
+	PrintErr        string `json:"print_err,omitempty"`
+	PrintErrWarning bool   `json:"print_err_warning,omitempty"`
 }
 
 // Written to the Info path of the task
