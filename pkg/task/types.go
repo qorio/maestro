@@ -41,7 +41,7 @@ type Cmd struct {
 type TaskName string
 type Task struct {
 	// Required
-	Id  string `json:"id"`
+	Id  string `json:"id,omitempty"`
 	Cmd *Cmd   `json:"cmd,omitempty"`
 
 	// If this is set to true then we only require id and command to be set
@@ -66,7 +66,7 @@ type Task struct {
 
 	Runs int `json:"runs,omitempty"`
 
-	Stat TaskStat
+	Stat TaskStat `json:"stat,omitempty"`
 
 	PrintPre        string `json:"print_pre,omitempty"`
 	PrintPost       string `json:"print_post,omitempty"`

@@ -96,6 +96,10 @@ func FetchUrl(urlRef string, headers map[string]string, zc ...zk.ZK) (body strin
 			return string(buff), "text/plain", nil
 		}
 
+	case strings.Index(urlRef, "string://") == 0:
+		content := urlRef[len("string://"):]
+		return content, "text/plain", nil
+
 	case strings.Index(urlRef, "env://") == 0:
 		if len(zc) == 0 {
 			return "", "", ErrNotConnectedToZk
