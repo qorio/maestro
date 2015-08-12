@@ -42,6 +42,17 @@ func Resolve(zc ZK, key registry.Path, value string) (registry.Path, string, err
 	}
 }
 
+func PathExists(zc ZK, key registry.Path) bool {
+	_, err := zc.Get(key.Path())
+	switch {
+	case err == ErrNotExist:
+		return false
+	case err != nil:
+		return true
+	}
+	return true
+}
+
 func GetObject(zc ZK, key registry.Path, value interface{}) error {
 	n, err := zc.Get(key.Path())
 	switch {
