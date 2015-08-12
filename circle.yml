@@ -38,6 +38,3 @@ test:
     - godep go test ./pkg/zk/... -v -check.vv --logtostderr
     #- godep go test ./pkg/docker/... -v -check.vv
 
-
-## Customize deployment commands
-deployment:
