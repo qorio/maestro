@@ -5,6 +5,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/samuel/go-zookeeper/zk"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -12,6 +13,7 @@ import (
 var (
 	ErrNotConnected = errors.New("zk-not-initialized")
 	ErrNotExist     = zk.ErrNoNode
+	ErrConflict     = errors.New("error-conflict")
 )
 
 const (
@@ -541,4 +543,39 @@ func (this *Node) Delete() error {
 	} else {
 		return nil
 	}
+}
+
+func (this *Node) Increment(increment int) (int, error) {
+	if err := this.zk.check(); err != nil {
+		return -1, err
+	}
+	count, err := strconv.Atoi(this.GetValueString())
+	if err != nil {
+		count = 0
+	}
+	count += increment
+	err = this.Set([]byte(strconv.Itoa(count)))
+	if err != nil {
+		return -1, err
+	}
+	return count, nil
+}
+
+func (this *Node) CheckAndIncrement(current, increment int) (int, error) {
+	if err := this.zk.check(); err != nil {
+		return -1, err
+	}
+	count, err := strconv.Atoi(this.GetValueString())
+	switch {
+	case err != nil:
+		return -1, err
+	case count != current:
+		return -1, ErrConflict
+	}
+	count += increment
+	err = this.Set([]byte(strconv.Itoa(count)))
+	if err != nil {
+		return -1, err
+	}
+	return count, nil
 }
