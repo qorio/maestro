@@ -20,7 +20,6 @@ const (
 	StateUnknown           = zk.StateUnknown
 	StateDisconnected      = zk.StateDisconnected
 	StateConnecting        = zk.StateConnecting
-	StateSyncConnected     = zk.StateSyncConnected
 	StateAuthFailed        = zk.StateAuthFailed
 	StateConnectedReadOnly = zk.StateConnectedReadOnly
 	StateSaslAuthenticated = zk.StateSaslAuthenticated
