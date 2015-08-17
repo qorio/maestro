@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	ErrNotConnected = errors.New("zk-not-initialized")
-	ErrNotExist     = zk.ErrNoNode
-	ErrConflict     = errors.New("error-conflict")
+	ErrNotConnected   = errors.New("zk-not-initialized")
+	ErrNotExist       = zk.ErrNoNode
+	ErrConflict       = errors.New("error-conflict")
+	ErrZkDisconnected = errors.New("error-zk-disconnected")
 )
 
 const (
@@ -39,7 +40,7 @@ type ZK interface {
 	Get(string) (*Node, error)
 	Watch(string, func(Event)) (chan<- bool, error)
 	WatchChildren(string, func(Event)) (chan<- bool, error)
-	KeepWatch(string, func(Event) bool) (chan<- bool, error)
+	KeepWatch(string, func(Event) bool, ...func(error)) (chan<- bool, error)
 	Delete(string) error
 }
 
@@ -181,7 +182,7 @@ func (this *zookeeper) WatchChildren(path string, f func(Event)) (chan<- bool, e
 	}
 }
 
-func (this *zookeeper) KeepWatch(path string, f func(Event) bool) (chan<- bool, error) {
+func (this *zookeeper) KeepWatch(path string, f func(Event) bool, alerts ...func(error)) (chan<- bool, error) {
 	if err := this.check(); err != nil {
 		return nil, err
 	}
@@ -191,6 +192,11 @@ func (this *zookeeper) KeepWatch(path string, f func(Event) bool) (chan<- bool, 
 
 	_, _, event_chan, err := this.conn.ExistsW(path)
 	if err != nil {
+		go func() {
+			for _, a := range alerts {
+				a(err)
+			}
+		}()
 		return nil, err
 	}
 	stop := make(chan bool, 1)
@@ -199,11 +205,27 @@ func (this *zookeeper) KeepWatch(path string, f func(Event) bool) (chan<- bool, 
 		for {
 			select {
 			case event := <-event_chan:
+
+				if event.State == zk.StateDisconnected {
+					go func() {
+						for _, a := range alerts {
+							a(ErrZkDisconnected)
+						}
+					}()
+				}
+
 				more := f(Event(event))
 				if more {
 					_, _, event_chan, err = this.conn.ExistsW(path)
-					if err != nil {
+					if err == nil {
+						glog.Infoln("Continue watching", path)
+					} else {
 						glog.Warningln("Error on watch", path, err)
+						go func() {
+							for _, a := range alerts {
+								a(err)
+							}
+						}()
 						return
 					}
 				}
