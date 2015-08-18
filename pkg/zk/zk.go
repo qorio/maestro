@@ -1,6 +1,7 @@
 package zk
 
 import (
+	"encoding/json"
 	"errors"
 	"github.com/golang/glog"
 	"github.com/samuel/go-zookeeper/zk"
@@ -31,10 +32,46 @@ const (
 
 type Event zk.Event
 
+var (
+	event_types = map[zk.EventType]string{
+		zk.EventNodeCreated:         "node-created",
+		zk.EventNodeDeleted:         "node-deleted",
+		zk.EventNodeDataChanged:     "node-data-changed",
+		zk.EventNodeChildrenChanged: "node-children-changed",
+		zk.EventSession:             "session",
+		zk.EventNotWatching:         "not-watching",
+	}
+	states = map[zk.State]string{
+		zk.StateUnknown:           "state-unknown",
+		zk.StateDisconnected:      "state-disconnected",
+		zk.StateAuthFailed:        "state-auth-failed",
+		zk.StateConnectedReadOnly: "state-connected-readonly",
+		zk.StateSaslAuthenticated: "state-sasl-authenticated",
+		zk.StateExpired:           "state-expired",
+		zk.StateConnected:         "state-connected",
+		zk.StateHasSession:        "state-has-session",
+	}
+)
+
+func (e Event) AsMap() map[string]interface{} {
+	return map[string]interface{}{
+		"type":   event_types[e.Type],
+		"state":  states[e.State],
+		"path":   e.Path,
+		"error":  e.Err,
+		"server": e.Server,
+	}
+}
+
+func (e Event) JSON() string {
+	buff, _ := json.Marshal(e.AsMap())
+	return string(buff)
+}
+
 type ZK interface {
 	Reconnect() error
 	Close() error
-
+	Events() <-chan Event
 	Create(string, []byte) (*Node, error)
 	CreateEphemeral(string, []byte) (*Node, error)
 	Get(string) (*Node, error)
@@ -48,6 +85,8 @@ type zookeeper struct {
 	conn    *zk.Conn
 	servers []string
 	timeout time.Duration
+	events  <-chan Event
+	stop    chan<- bool
 }
 
 func (z *Node) GetPath() string {
@@ -76,15 +115,32 @@ type Node struct {
 }
 
 func Connect(servers []string, timeout time.Duration) (*zookeeper, error) {
-	conn, _, err := zk.Connect(servers, timeout)
+	conn, _events, err := zk.Connect(servers, timeout)
 	if err != nil {
 		return nil, err
 	}
+
+	stop_chan := make(chan bool)
+	events := make(chan Event)
+	go func() {
+		for {
+			select {
+			case evt := <-_events:
+				events <- Event(evt)
+			case stop := <-stop_chan:
+				if stop {
+					break
+				}
+			}
+		}
+	}()
 	glog.Infoln("Connected to zk:", servers)
 	return &zookeeper{
 		conn:    conn,
 		servers: servers,
 		timeout: timeout,
+		events:  events,
+		stop:    stop_chan,
 	}, nil
 }
 
@@ -95,9 +151,14 @@ func (this *zookeeper) check() error {
 	return nil
 }
 
+func (this *zookeeper) Events() <-chan Event {
+	return this.events
+}
+
 func (this *zookeeper) Close() error {
 	this.conn.Close()
 	this.conn = nil
+	this.stop <- true
 	return nil
 }
 
@@ -206,29 +267,39 @@ func (this *zookeeper) KeepWatch(path string, f func(Event) bool, alerts ...func
 			select {
 			case event := <-event_chan:
 
-				if event.State == zk.StateDisconnected {
+				more := false
+				switch event.State {
+				case zk.StateDisconnected:
 					go func() {
 						for _, a := range alerts {
 							a(ErrZkDisconnected)
 						}
 					}()
+					more = true
+				default:
+					more = f(Event(event))
 				}
-
-				more := f(Event(event))
 				if more {
-					_, _, event_chan, err = this.conn.ExistsW(path)
-					if err == nil {
-						glog.Infoln("Continue watching", path)
-					} else {
-						glog.Warningln("Error on watch", path, err)
-						go func() {
-							for _, a := range alerts {
-								a(err)
-							}
-						}()
-						return
+					// Retry loop
+					for {
+						glog.V(100).Infoln("Trying to set watch on", path)
+						_, _, event_chan, err = this.conn.ExistsW(path)
+						if err == nil {
+							glog.Infoln("Continue watching", path)
+							break
+						} else {
+							glog.Warningln("Error on watch", path, err)
+							go func() {
+								for _, a := range alerts {
+									a(err)
+								}
+							}()
+							// Wait a little
+							time.Sleep(1 * time.Second)
+						}
 					}
 				}
+
 			case b := <-stop:
 				if b {
 					glog.Infoln("Watch terminated:", path)

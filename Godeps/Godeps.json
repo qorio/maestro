@@ -39,7 +39,7 @@
 		},
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
-			"Rev": "5bb5cfc093ad18a28148c578f8632cfdb4d802e4"
+			"Rev": "177002e16a0061912f02377e2dd8951a8b3551bc"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ssh",
