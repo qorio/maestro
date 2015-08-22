@@ -2,10 +2,32 @@ package registry
 
 import (
 	"fmt"
+	"path"
+	"strings"
 	"time"
 )
 
 type Path string
+
+func NewPath(s string, parts ...string) Path {
+	return Path(path.Join("/", s, path.Join(parts...)))
+}
+
+func (this Path) Sub(parts ...string) Path {
+	return Path(path.Join(string(this), path.Join(parts...)))
+}
+
+func (this Path) Base() string {
+	return path.Base(string(this))
+}
+
+func (this Path) Dir() Path {
+	return Path(path.Dir(string(this)))
+}
+
+func (this Path) Parts() []string {
+	return strings.Split(string(this), "/")
+}
 
 type Timeout time.Duration
 

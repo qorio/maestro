@@ -167,3 +167,20 @@ func DeleteObject(zc ZK, key registry.Path) error {
 		return err
 	}
 }
+
+func Visit(zc ZK, key registry.Path, v func(registry.Path, []byte) bool) error {
+	zn, err := zc.Get(key.Path())
+	if err != nil {
+		return err
+	}
+	children, err := zn.Children()
+	if err != nil {
+		return err
+	}
+	for _, n := range children {
+		if !v(registry.NewPath(n.GetPath()), n.GetValue()) {
+			return nil
+		}
+	}
+	return nil
+}
