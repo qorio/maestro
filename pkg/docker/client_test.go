@@ -46,3 +46,22 @@ func (suite *DockerClientTests) TestConnectDocker(c *C) {
 		c.Log("network", a.Network(), "addr", ip.String())
 	}
 }
+
+// From http://docs.docker.com/v1.7/reference/api/hub_registry_spec/
+func (suite *DockerClientTests) TestImageParsing(c *C) {
+	c.Assert(ParseImageUrl("https://<registry>/repositories/samalba/busybox"), DeepEquals, Image{
+		Registry:   "https://<registry>/repositories",
+		Repository: "samalba/busybox",
+	})
+	c.Assert(ParseImageUrl("https://<registry>/repositories/samalba/busybox:12"), DeepEquals, Image{
+		Registry:   "https://<registry>/repositories",
+		Repository: "samalba/busybox",
+		Tag:        "12",
+	})
+	c.Assert(ParseImageUrl("http://host.com:8080/repositories/samalba/busybox:latest"), DeepEquals, Image{
+		Registry:   "http://host.com:8080/repositories",
+		Repository: "samalba/busybox",
+		Tag:        "latest",
+	})
+
+}

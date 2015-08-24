@@ -90,6 +90,25 @@ func GetBytes(zc ZK, key registry.Path) []byte {
 	return n.GetValue()
 }
 
+func GetInt(zc ZK, key registry.Path) *int {
+	n, err := zc.Get(key.Path())
+	switch {
+	case err == ErrNotExist:
+		return nil
+	case err != nil:
+		return nil
+	}
+	v := n.GetValueString()
+	if v == "" {
+		return nil
+	}
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		return nil
+	}
+	return &i
+}
+
 func CreateOrSet(zc ZK, key registry.Path, value interface{}) error {
 	switch value.(type) {
 	case string:
@@ -103,6 +122,11 @@ func CreateOrSet(zc ZK, key registry.Path, value interface{}) error {
 		}
 		return CreateOrSetBytes(zc, key, serialized)
 	}
+}
+
+func CreateOrSetInt(zc ZK, key registry.Path, value int) error {
+	v := strconv.Itoa(value)
+	return CreateOrSetBytes(zc, key, []byte(v))
 }
 
 func CreateOrSetString(zc ZK, key registry.Path, value string) error {
