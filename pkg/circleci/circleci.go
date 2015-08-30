@@ -13,22 +13,6 @@ import (
 	"regexp"
 )
 
-type Config struct {
-	User     string `json:"user"`
-	Project  string `json:"project"`
-	ApiToken string `json:"token"`
-}
-
-type BuildArtifact struct {
-	Path       string `json:"path,omitempty"`
-	PrettyPath string `json:"pretty_path,omitempty"`
-	URL        string `json:"url,omitempty"`
-	Name       string `json:"name,omitempty"`
-	circleci   *Config
-}
-
-const CircleApiPrefix = "https://circleci.com/api/v1"
-
 func (this *Config) url(format string, parts ...interface{}) (*url.URL, error) {
 	url_main := CircleApiPrefix + fmt.Sprintf(format, parts...)
 	url, err := url.Parse(url_main)
