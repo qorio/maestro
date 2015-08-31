@@ -4,18 +4,12 @@ import ()
 
 const CircleApiPrefix = "https://circleci.com/api/v1"
 
-type Config struct {
-	User     string `json:"user"`
-	Project  string `json:"project"`
-	ApiToken string `json:"token"`
-}
-
 type BuildArtifact struct {
 	Path       string `json:"path,omitempty"`
 	PrettyPath string `json:"pretty_path,omitempty"`
 	URL        string `json:"url,omitempty"`
 	Name       string `json:"name,omitempty"`
-	circleci   *Config
+	circleci   *Build
 }
 
 // https://circleci.com/docs/environment-variables
@@ -46,10 +40,10 @@ CIRCLE_TEST_REPORTS
 The directory whose contents are automatically processed as JUnit test metadata.
 */
 type Build struct {
-	Project          string `json:"project"`
-	ProjectUser      string `json:"project_user"`
 	User             string `json:"user"`
-	Token            string `json:"token"`
+	Project          string `json:"project"`
+	ApiToken         string `json:"token"`
+	ProjectUser      string `json:"project_user"`
 	BuildNum         int    `json:"build_num"`
 	PreviousBuildNum int    `json:"previous_build_num"`
 	GitRepo          string `json:"git_repo"`
@@ -58,7 +52,19 @@ type Build struct {
 	ArtifactsDir     string `json:"artifacts_dir"`
 
 	yml *CircleYml
+
+	LogStart func(Phase)
+	LogEnd   func(Phase, error) bool
 }
+
+type Phase string
+
+const (
+	PhaseMachine      = Phase("machine")
+	PhaseDependencies = Phase("dependencies")
+	PhaseTest         = Phase("test")
+	PhaseDeployment   = Phase("deployment")
+)
 
 type CircleYml struct {
 	Machine      Machine `yaml:"machine,omitempty"`

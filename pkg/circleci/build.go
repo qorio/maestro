@@ -14,6 +14,7 @@ func (this *Build) ExportEnvironments() error {
 
 	os.Setenv("CIRCLE_PROJECT_USERNAME", this.ProjectUser)
 	os.Setenv("CIRCLE_PROJECT_REPONAME", this.Project)
+	os.Setenv("CIRCLE_REPO_URL", this.GitRepo)
 	os.Setenv("CIRCLE_BRANCH", this.GitBranch)
 	os.Setenv("CIRCLE_SHA1", this.Commit)
 	os.Setenv("CIRCLE_BUILD_NUM", fmt.Sprintf("%d", this.BuildNum))
@@ -50,6 +51,12 @@ func (this *Build) Build(yml *CircleYml) error {
 	if this.yml == nil {
 		return nil
 	}
+	if this.LogStart == nil {
+		this.LogStart = func(p Phase) {}
+	}
+	if this.LogEnd == nil {
+		this.LogEnd = func(Phase, error) bool { return true }
+	}
 
 	if err := this.ExportEnvironments(); err != nil {
 		return err
@@ -57,30 +64,42 @@ func (this *Build) Build(yml *CircleYml) error {
 
 	filter := original
 
+	var err error = nil
+
+	////////////////
+	this.LogStart(PhaseDependencies)
 	for _, line := range filter(this.yml.Dependencies.Pre) {
-		if err := execute(line); err != nil {
-			return err
+		if err = execute(line); err != nil {
+			break
 		}
 	}
-
 	for _, line := range filter(this.yml.Dependencies.Override) {
-		if err := execute(line); err != nil {
-			return err
+		if err = execute(line); err != nil {
+			break
 		}
 	}
+	if !this.LogEnd(PhaseDependencies, err) {
+		return err
+	}
 
+	////////////////
+	this.LogStart(PhaseTest)
 	for _, line := range filter(this.yml.Test.Pre) {
-		if err := execute(line); err != nil {
-			return err
+		if err = execute(line); err != nil {
+			break
 		}
 	}
-
 	for _, line := range filter(this.yml.Test.Override) {
-		if err := execute(line); err != nil {
-			return err
+		if err = execute(line); err != nil {
+			break
 		}
 	}
+	if !this.LogEnd(PhaseTest, err) {
+		return err
+	}
 
+	////////////////
+	this.LogStart(PhaseDeployment)
 	for k, deploy := range this.yml.Deployment {
 		pat := deploy.Branch
 		match := false
@@ -93,15 +112,16 @@ func (this *Build) Build(yml *CircleYml) error {
 		if match {
 
 			for _, line := range filter(deploy.Commands) {
-				if err := execute(line); err != nil {
-					return err
+				if err = execute(line); err != nil {
+					break
 				}
 			}
 		} else {
 			glog.Infoln("Skipping", k, deploy.Branch)
 		}
 	}
-	return nil
+	this.LogEnd(PhaseDeployment, err)
+	return err
 }
 
 func execute(line string) error {
@@ -137,5 +157,10 @@ func execute(line string) error {
 		return err
 	}
 	stdin.Close() // finished
-	return c.Wait()
+	err = c.Wait()
+
+	if ee, ok := err.(*exec.ExitError); ok {
+		glog.Infoln("PID", ee.Pid(), " - Process state", ee.Success())
+	}
+	return err
 }

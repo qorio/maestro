@@ -24,13 +24,13 @@ func (suite *CircleCITests) TestFetchBuildArtifacts(c *C) {
 	filter, err := MatchPathAndBinary(macosx_build, "passport")
 	c.Assert(err, Equals, nil)
 
-	cl := &Config{
+	cl := &Build{
 		User:     "qorio",
 		Project:  "omni",
 		ApiToken: token,
 	}
 
-	var build int64 = 291
+	var build int = 291
 	artifacts, err := cl.FetchBuildArtifacts(build, filter)
 	c.Assert(err, Equals, nil)
 	c.Assert(len(artifacts), Equals, 1)

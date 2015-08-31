@@ -68,10 +68,10 @@ deployment:
 	b := &Build{
 		ProjectUser:  "david",
 		Project:      "test",
+		User:         "tester",
 		GitBranch:    "v1.0",
 		BuildNum:     10,
 		ArtifactsDir: "/dev/null",
-		User:         "tester",
 	}
 
 	err = b.Build(yml)
