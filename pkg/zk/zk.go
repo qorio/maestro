@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -82,11 +83,37 @@ type ZK interface {
 }
 
 type zookeeper struct {
-	conn    *zk.Conn
-	servers []string
-	timeout time.Duration
-	events  <-chan Event
-	stop    chan<- bool
+	conn           *zk.Conn
+	servers        []string
+	timeout        time.Duration
+	events         <-chan Event
+	stop           chan<- bool
+	ephemeralNodes map[string][]byte
+	lock           sync.Mutex
+	disconnected   bool
+	retry          chan *kv
+}
+
+type kv struct {
+	key   string
+	value []byte
+}
+
+func (this *zookeeper) on_disconnect() {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	this.disconnected = true
+}
+
+func (this *zookeeper) on_connect() {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	if this.disconnected {
+		for k, v := range this.ephemeralNodes {
+			this.retry <- &kv{key: k, value: v}
+		}
+		this.disconnected = false
+	}
 }
 
 func (z *Node) GetPath() string {
@@ -122,26 +149,50 @@ func Connect(servers []string, timeout time.Duration) (*zookeeper, error) {
 
 	stop_chan := make(chan bool)
 	events := make(chan Event)
+	zz := &zookeeper{
+		conn:           conn,
+		servers:        servers,
+		timeout:        timeout,
+		events:         events,
+		stop:           stop_chan,
+		ephemeralNodes: map[string][]byte{},
+		retry:          make(chan *kv),
+	}
 	go func() {
 		for {
 			select {
 			case evt := <-_events:
+
+				switch evt.State {
+				case StateHasSession:
+					glog.Warningln("ZK state has-session")
+					zz.on_connect()
+				case StateDisconnected:
+					glog.Warningln("ZK state disconnected")
+					zz.on_disconnect()
+				}
 				events <- Event(evt)
 			case stop := <-stop_chan:
 				if stop {
+					zz.retry <- nil
 					break
 				}
 			}
 		}
 	}()
+	go func() {
+		for {
+			r := <-zz.retry
+			if r == nil {
+				break
+			}
+			glog.Infoln("Re-creating ephemeral znode: key=", r.key, ",value=", string(r.value))
+			zz.CreateEphemeral(r.key, r.value)
+		}
+	}()
+
 	glog.Infoln("Connected to zk:", servers)
-	return &zookeeper{
-		conn:    conn,
-		servers: servers,
-		timeout: timeout,
-		events:  events,
-		stop:    stop_chan,
-	}, nil
+	return zz, nil
 }
 
 func (this *zookeeper) check() error {
@@ -176,6 +227,13 @@ func (this *zookeeper) Delete(path string) error {
 	if err := this.check(); err != nil {
 		return err
 	}
+
+	if _, has := this.ephemeralNodes[path]; has {
+		this.lock.Lock()
+		delete(this.ephemeralNodes, path)
+		this.lock.Unlock()
+	}
+
 	return this.conn.Delete(path, -1)
 }
 
@@ -383,6 +441,13 @@ func (this *zookeeper) create(path string, value []byte, ephemeral bool) (*Node,
 	if err != nil {
 		return nil, err
 	}
+
+	if ephemeral {
+		this.lock.Lock()
+		this.ephemeralNodes[path] = value
+		this.lock.Unlock()
+	}
+
 	return zn, nil
 }
 

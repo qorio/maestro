@@ -9,13 +9,13 @@ import (
 	"strings"
 )
 
-func (this *Artifact) circleci(c Context) (*circleci.Config, int64, error) {
+func (this *Artifact) circleci(c Context) (*circleci.Build, int, error) {
 	parts := strings.Split(this.Project, "/")
 	if len(parts) != 2 {
 		return nil, 0, errors.New("Project not in format of <user>/<proj>: " + this.Project)
 	}
 
-	api := circleci.Config{
+	api := circleci.Build{
 		User:     parts[0],
 		Project:  parts[1],
 		ApiToken: this.SourceApiToken,
@@ -24,7 +24,7 @@ func (this *Artifact) circleci(c Context) (*circleci.Config, int64, error) {
 	if err != nil {
 		return nil, 0, errors.New("Must be a numeric build number:" + this.BuildNumber)
 	}
-	return &api, build, nil
+	return &api, int(build), nil
 }
 
 func (this *Artifact) get_circleci_lookup_filter() (circleci.BuildArtifactFilter, error) {
