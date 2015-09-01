@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -89,7 +88,6 @@ type zookeeper struct {
 	events         <-chan Event
 	stop           chan<- bool
 	ephemeralNodes map[string][]byte
-	lock           sync.Mutex
 	disconnected   bool
 	retry          chan *kv
 }
@@ -100,14 +98,10 @@ type kv struct {
 }
 
 func (this *zookeeper) on_disconnect() {
-	this.lock.Lock()
-	defer this.lock.Unlock()
 	this.disconnected = true
 }
 
 func (this *zookeeper) on_connect() {
-	this.lock.Lock()
-	defer this.lock.Unlock()
 	if this.disconnected {
 		for k, v := range this.ephemeralNodes {
 			this.retry <- &kv{key: k, value: v}
@@ -229,9 +223,7 @@ func (this *zookeeper) Delete(path string) error {
 	}
 
 	if _, has := this.ephemeralNodes[path]; has {
-		this.lock.Lock()
 		delete(this.ephemeralNodes, path)
-		this.lock.Unlock()
 	}
 
 	return this.conn.Delete(path, -1)
@@ -443,9 +435,7 @@ func (this *zookeeper) create(path string, value []byte, ephemeral bool) (*Node,
 	}
 
 	if ephemeral {
-		this.lock.Lock()
 		this.ephemeralNodes[path] = value
-		this.lock.Unlock()
 	}
 
 	return zn, nil
