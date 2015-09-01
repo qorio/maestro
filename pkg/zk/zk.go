@@ -435,7 +435,7 @@ func (this *zookeeper) create(path string, value []byte, ephemeral bool) (*Node,
 	}
 
 	if ephemeral {
-		this.ephemeralNodes[path] = value
+		this.ephemeralNodes[path] = zn.GetValue()
 	}
 
 	return zn, nil
@@ -526,6 +526,10 @@ func (this *Node) Set(value []byte) error {
 	}
 	this.Value = value
 	this.Stats = s
+
+	if this.Stats.EphemeralOwner > 0 {
+		this.zk.ephemeralNodes[this.Path] = value
+	}
 	return nil
 }
 
