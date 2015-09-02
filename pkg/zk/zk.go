@@ -66,12 +66,14 @@ type zookeeper struct {
 	conn           *zk.Conn
 	servers        []string
 	timeout        time.Duration
-	events         <-chan Event
-	stop           chan<- bool
+	events         chan Event
 	ephemeralNodes map[string][]byte
 	disconnected   bool
 	retry          chan *kv
+	retry_stop     chan int
+	stop           chan int
 	lock           sync.RWMutex
+	running        bool
 }
 
 type kv struct {
@@ -102,6 +104,8 @@ func (this *zookeeper) on_disconnect() {
 
 func (this *zookeeper) on_connect() {
 	if this.disconnected {
+		this.lock.RLock()
+		defer this.lock.RUnlock()
 		for k, v := range this.ephemeralNodes {
 			this.retry <- &kv{key: k, value: v}
 		}
@@ -111,33 +115,37 @@ func (this *zookeeper) on_connect() {
 
 func (this *zookeeper) track_ephemeral(zn *Node) {
 	if zn.Stats.EphemeralOwner > 0 {
-		this.lock.RLock()
-		defer this.lock.RUnlock()
+		this.lock.Lock()
+		defer this.lock.Unlock()
 		this.ephemeralNodes[zn.Path] = zn.Value
 	}
 }
 
+func (this *zookeeper) untrack_ephemeral(path string) {
+	this.lock.Lock()
+	defer this.lock.Unlock()
+	delete(this.ephemeralNodes, path)
+}
+
 func Connect(servers []string, timeout time.Duration) (*zookeeper, error) {
-	conn, _events, err := zk.Connect(servers, timeout)
+	conn, events, err := zk.Connect(servers, timeout)
 	if err != nil {
 		return nil, err
 	}
-
-	stop_chan := make(chan bool)
-	events := make(chan Event)
 	zz := &zookeeper{
 		conn:           conn,
 		servers:        servers,
 		timeout:        timeout,
-		events:         events,
-		stop:           stop_chan,
+		events:         make(chan Event),
+		stop:           make(chan int),
 		ephemeralNodes: map[string][]byte{},
 		retry:          make(chan *kv),
+		retry_stop:     make(chan int),
 	}
 	go func() {
 		for {
 			select {
-			case evt := <-_events:
+			case evt := <-events:
 
 				switch evt.State {
 				case StateHasSession:
@@ -147,23 +155,21 @@ func Connect(servers []string, timeout time.Duration) (*zookeeper, error) {
 					glog.Warningln("ZK state disconnected")
 					zz.on_disconnect()
 				}
-				events <- Event(evt)
-			case stop := <-stop_chan:
-				if stop {
-					zz.retry <- nil
-					break
-				}
+				zz.events <- Event(evt)
+			case <-zz.stop:
+				return
 			}
 		}
 	}()
 	go func() {
 		for {
-			r := <-zz.retry
-			if r == nil {
-				break
+			select {
+			case r := <-zz.retry:
+				glog.Infoln("Re-creating ephemeral znode: key=", r.key, ",value=", string(r.value))
+				zz.CreateEphemeral(r.key, r.value)
+			case <-zz.retry_stop:
+				return
 			}
-			glog.Infoln("Re-creating ephemeral znode: key=", r.key, ",value=", string(r.value))
-			zz.CreateEphemeral(r.key, r.value)
 		}
 	}()
 
@@ -183,9 +189,10 @@ func (this *zookeeper) Events() <-chan Event {
 }
 
 func (this *zookeeper) Close() error {
+	this.stop <- 1
+	this.retry_stop <- 1
 	this.conn.Close()
 	this.conn = nil
-	this.stop <- true
 	return nil
 }
 
@@ -302,7 +309,7 @@ func (this *zookeeper) KeepWatch(path string, f func(Event) bool, alerts ...func
 				if more {
 					// Retry loop
 					for {
-						glog.V(100).Infoln("Trying to set watch on", path)
+						glog.Infoln("Trying to set watch on", path)
 						_, _, event_chan, err = this.conn.ExistsW(path)
 						if err == nil {
 							glog.Infoln("Continue watching", path)
@@ -355,11 +362,7 @@ func (this *zookeeper) Delete(path string) error {
 	if err := this.check(); err != nil {
 		return err
 	}
-
-	if _, has := this.ephemeralNodes[path]; has {
-		delete(this.ephemeralNodes, path)
-	}
-
+	this.untrack_ephemeral(path)
 	return this.conn.Delete(path, -1)
 }
 

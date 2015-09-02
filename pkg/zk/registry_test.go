@@ -34,7 +34,9 @@ func test_ns(k string) r.Path {
 
 func (suite *RegistryTests) TearDownSuite(c *C) {
 	suite.zk.Delete("/unit-test") // TODO - this fails before there are children under this node
+	c.Log("Closing")
 	suite.zk.Close()
+	c.Log("Closing2")
 	suite.zk2.Close()
 }
 
