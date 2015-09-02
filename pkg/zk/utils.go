@@ -109,31 +109,36 @@ func GetInt(zc ZK, key registry.Path) *int {
 	return &i
 }
 
-func CreateOrSet(zc ZK, key registry.Path, value interface{}) error {
+func CreateOrSet(zc ZK, key registry.Path, value interface{}, ephemeral ...bool) error {
 	switch value.(type) {
 	case string:
-		return CreateOrSetString(zc, key, value.(string))
+		return CreateOrSetString(zc, key, value.(string), ephemeral...)
 	case []byte:
-		return CreateOrSetBytes(zc, key, value.([]byte))
+		return CreateOrSetBytes(zc, key, value.([]byte), ephemeral...)
 	default:
 		serialized, err := json.Marshal(value)
 		if err != nil {
 			return err
 		}
-		return CreateOrSetBytes(zc, key, serialized)
+		return CreateOrSetBytes(zc, key, serialized, ephemeral...)
 	}
 }
 
-func CreateOrSetInt(zc ZK, key registry.Path, value int) error {
+func CreateOrSetInt(zc ZK, key registry.Path, value int, ephemeral ...bool) error {
 	v := strconv.Itoa(value)
-	return CreateOrSetBytes(zc, key, []byte(v))
+	return CreateOrSetBytes(zc, key, []byte(v), ephemeral...)
 }
 
-func CreateOrSetString(zc ZK, key registry.Path, value string) error {
-	return CreateOrSetBytes(zc, key, []byte(value))
+func CreateOrSetString(zc ZK, key registry.Path, value string, ephemeral ...bool) error {
+	return CreateOrSetBytes(zc, key, []byte(value), ephemeral...)
 }
 
-func CreateOrSetBytes(zc ZK, key registry.Path, value []byte) error {
+func CreateOrSetBytes(zc ZK, key registry.Path, value []byte, ephemeral ...bool) error {
+	if len(ephemeral) > 0 && ephemeral[0] {
+		_, err := zc.CreateEphemeral(key.Path(), value)
+		return err
+	}
+
 	n, err := zc.Get(key.Path())
 	switch {
 	case err == ErrNotExist:
