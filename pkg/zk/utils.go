@@ -174,7 +174,7 @@ func Increment(zc ZK, key registry.Path, increment int) error {
 func CheckAndIncrement(zc ZK, key registry.Path, current, increment int) (int, error) {
 	n, err := zc.Get(key.Path())
 	switch {
-	case err == ErrNotExist:
+	case err == ErrNotExist, len(n.GetValue()) == 0:
 		val := 0
 		n, err = zc.Create(key.Path(), []byte(strconv.Itoa(val)))
 		if err != nil {
