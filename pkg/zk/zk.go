@@ -165,6 +165,10 @@ func Connect(servers []string, timeout time.Duration) (*zookeeper, error) {
 		for {
 			select {
 			case r := <-zz.retry:
+				if r == nil {
+					glog.Infoln("Stopping retry")
+					return
+				}
 				glog.Infoln("Re-creating ephemeral znode: key=", r.key, ",value=", string(r.value))
 				zz.CreateEphemeral(r.key, r.value)
 			case <-zz.retry_stop:
@@ -189,10 +193,12 @@ func (this *zookeeper) Events() <-chan Event {
 }
 
 func (this *zookeeper) Close() error {
-	this.stop <- 1
-	this.retry_stop <- 1
+	glog.Infoln("Shutting down...")
+	close(this.stop)
+	close(this.retry_stop)
 	this.conn.Close()
 	this.conn = nil
+	glog.Infoln("Finished shutting down")
 	return nil
 }
 
