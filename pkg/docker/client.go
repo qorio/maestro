@@ -255,6 +255,13 @@ func (c *Docker) RemoveContainer(auth *AuthIdentity, id string, removeVolumes, f
 	})
 }
 
+func (c *Docker) RemoveImage(image string, force, prune bool) error {
+	return c.docker.RemoveImageExtended(image, _docker.RemoveImageOptions{
+		Force:   force,
+		NoPrune: !prune,
+	})
+}
+
 type Action int
 
 const (
