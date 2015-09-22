@@ -84,7 +84,7 @@ func (this *Node) Set(value []byte) error {
 	}
 	this.Value = value
 	this.Stats = s
-	this.zk.track_ephemeral(this)
+	this.zk.track_ephemeral(this, s.EphemeralOwner > 0)
 	return nil
 }
 
