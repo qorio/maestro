@@ -421,20 +421,20 @@ func (this *zookeeper) KeepWatch(path string, f func(Event) bool, alerts ...func
 				if more {
 					// Retry loop
 					for {
-						glog.Infoln("WATCH: Trying to set watch on", path)
+						glog.Infoln("WATCH-RETRY: Trying to set watch on", path)
 						_, _, event_chan, err = this.conn.ExistsW(path)
 						if err == nil {
-							glog.Infoln("WATCH: Continue watching", path)
+							glog.Infoln("WATCH-RETRY: Continue watching", path)
 							this.events <- Event{Event: zk.Event{Path: path}, Action: "Watch-Retry", Note: "retry ok"}
 							break
 						} else {
-							glog.Warningln("WATCH: Error -", path, err)
+							glog.Warningln("WATCH-RETRY: Error -", path, err)
 							for _, a := range alerts {
 								a(err)
 							}
 							// Wait a little
 							time.Sleep(1 * time.Second)
-							glog.Infoln("WATCH: Finished waiting. Try again to watch", path)
+							glog.Infoln("WATCH-RETRY: Finished waiting. Try again to watch", path)
 							this.events <- Event{Event: zk.Event{Path: path}, Action: "Watch-Retry", Note: "retrying"}
 						}
 					}
