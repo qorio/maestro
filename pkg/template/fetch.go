@@ -19,6 +19,8 @@ import (
 var (
 	ErrNotSupportedProtocol = errors.New("protocol-not-supported")
 	ErrNotConnectedToZk     = errors.New("not-connected-to-zk")
+	ErrMissingTemplateFunc  = errors.New("no-template-func")
+	ErrBadTemplateFunc      = errors.New("err-bad-template-func")
 )
 
 func ApplyTemplate(body string, context interface{}, funcs ...template.FuncMap) (string, error) {
@@ -139,10 +141,27 @@ func ExecuteTemplateUrl(zc zk.ZK, url string, authToken string, data interface{}
 		"Authorization": "Bearer " + authToken,
 	}
 
-	config_template_text, _, err := FetchUrl(url, headers, zc)
-	if err != nil {
-		glog.Warningln("Error fetching template:", err)
-		return nil, err
+	var config_template_text string
+	var err error
+	switch {
+	case strings.Index(url, "func://") == 0 && len(funcs) == 1:
+		if f, has := funcs[0][url[len("func://"):]]; has {
+			if ff, ok := f.(func() string); ok {
+				config_template_text = ff()
+			} else {
+				glog.Warningln("Bad function:", url)
+				return nil, ErrBadTemplateFunc
+			}
+		} else {
+			glog.Warningln("Error no function:", url)
+			return nil, ErrMissingTemplateFunc
+		}
+	default:
+		config_template_text, _, err = FetchUrl(url, headers, zc)
+		if err != nil {
+			glog.Warningln("Error fetching template:", err)
+			return nil, err
+		}
 	}
 
 	funcMap := template.FuncMap{
