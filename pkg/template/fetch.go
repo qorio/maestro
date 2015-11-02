@@ -185,7 +185,7 @@ func ExecuteTemplateUrl(zc zk.ZK, url string, authToken string, data interface{}
 			}
 			return content, nil
 		},
-		"file": func(url string, dir ...string) (string, error) {
+		"file": func(url string, path ...string) (string, error) {
 			// We support variables inside the function argument
 			u, err := apply_template(url, url, data)
 			if err != nil {
@@ -197,8 +197,8 @@ func ExecuteTemplateUrl(zc zk.ZK, url string, authToken string, data interface{}
 			}
 			// Write to local file and return the path
 			parent := os.TempDir()
-			if len(dir) > 0 {
-				parent = dir[0]
+			if len(path) > 0 {
+				parent = path[0]
 				// We support variables inside the function argument
 				p, err := apply_template(parent, parent, data)
 				if err != nil {
@@ -206,13 +206,24 @@ func ExecuteTemplateUrl(zc zk.ZK, url string, authToken string, data interface{}
 				}
 				parent = string(p)
 			}
-			path := filepath.Join(parent, filepath.Base(string(u)))
-			err = ioutil.WriteFile(path, []byte(content), 0777)
-			glog.Infoln("Written", len([]byte(content)), " bytes to", path, "Err=", err)
+			// path can be either a filepath or a directory
+			// check the path to see if it's a directory
+			fpath := parent
+			fi, err := os.Stat(parent)
+			if os.IsNotExist(err) || !fi.IsDir() {
+				// use the path as is
+				fpath = parent
+			} else if fi.IsDir() {
+				// build the name
+				fpath = filepath.Join(parent, filepath.Base(string(u)))
+			}
+			glog.Infoln("Writing to", fpath)
+			err = ioutil.WriteFile(fpath, []byte(content), 0777)
+			glog.Infoln("Written", len([]byte(content)), " bytes to", fpath, "Err=", err)
 			if err != nil {
 				return "", err
 			}
-			return path, nil
+			return fpath, nil
 		},
 	}
 
