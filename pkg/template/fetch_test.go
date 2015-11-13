@@ -53,6 +53,9 @@ func (suite *TestSuiteFetch) TestFileModePerms(c *C) {
 	perm = FileModeFromString("0600")
 	c.Log("FileMode=", perm.String())
 	c.Assert(perm.String(), Equals, "-rw-------")
+	perm = FileModeFromString("600")
+	c.Log("FileMode=", perm.String())
+	c.Assert(perm.String(), Equals, "-rw-------")
 }
 
 func (suite *TestSuiteFetch) TestFetchAndExecuteTemplate(c *C) {

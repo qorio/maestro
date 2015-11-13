@@ -25,6 +25,9 @@ var (
 )
 
 func FileModeFromString(perm string) os.FileMode {
+	if len(perm) < 4 {
+		perm = fmt.Sprintf("%04v", perm)
+	}
 	fm := new(os.FileMode)
 	fmt.Sscanf(perm, "%v", fm)
 	return *fm
@@ -231,9 +234,8 @@ func ExecuteTemplateUrl(zc zk.ZK, url string, authToken string, data interface{}
 				// build the name
 				fpath = filepath.Join(parent, filepath.Base(string(u)))
 			}
-			glog.Infoln("Writing to", fpath, "perm=", perm.String()))
 			err = ioutil.WriteFile(fpath, []byte(content), perm)
-			glog.Infoln("Written", len([]byte(content)), " bytes to", fpath, "Err=", err)
+			glog.Infoln("Written", len([]byte(content)), " bytes to", fpath, "perm=", perm.String(), "Err=", err)
 			if err != nil {
 				return "", err
 			}
