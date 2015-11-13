@@ -15,7 +15,7 @@ type ZkTests struct{}
 var _ = Suite(&ZkTests{})
 
 func (suite *ZkTests) TearDownSuite(c *C) {
-	z, err := Connect([]string{"localhost:2181"}, 5*time.Second)
+	z, err := Connect(test_zkhosts(), 5*time.Second)
 	c.Assert(err, Equals, nil)
 	z.Delete("/unit-test") // TODO - this fails before there are children under this node
 }

@@ -207,8 +207,10 @@ func Connect(servers []string, timeout time.Duration) (*zookeeper, error) {
 				if !open {
 					return
 				}
-				delete(zz.ephemeral, remove)
-				glog.Infoln("EPHEMERAL-CACHE-REMOVE: Path=", remove)
+				if _, has := zz.ephemeral[remove]; has {
+					delete(zz.ephemeral, remove)
+					glog.Infoln("EPHEMERAL-CACHE-REMOVE: Path=", remove)
+				}
 			}
 		}
 	}()

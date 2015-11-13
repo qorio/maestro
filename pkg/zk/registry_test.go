@@ -18,11 +18,11 @@ type RegistryTests struct {
 var _ = Suite(&RegistryTests{})
 
 func (suite *RegistryTests) SetUpSuite(c *C) {
-	z, err := Connect([]string{"localhost:2181"}, 5*time.Second)
+	z, err := Connect(test_zkhosts(), 5*time.Second)
 	c.Assert(err, Equals, nil)
 	suite.zk = z
 
-	z2, err := Connect([]string{"localhost:2181"}, 5*time.Second)
+	z2, err := Connect(test_zkhosts(), 5*time.Second)
 	c.Assert(err, Equals, nil)
 	suite.zk2 = z2
 }
@@ -389,6 +389,107 @@ func (suite *RegistryTests) TestConditionsMembersMin(c *C) {
 	err := <-received
 
 	c.Assert(err, Equals, nil)
+}
+
+/// Use case for looking for a delta change in members
+func (suite *RegistryTests) TestConditionsDeltaMembers(c *C) {
+
+	p := test_ns("/deltas/test/group")
+	CreateOrSet(suite.zk, p, "bar")
+	CreateOrSet(suite.zk, p.Member("a"), "foo")
+	CreateOrSet(suite.zk, p.Member("b"), "foo")
+
+	delta := int32(1)
+	timeout := r.Timeout(10 * time.Second)
+	members := r.Members{
+		Top:   p,
+		Delta: &delta,
+	}
+
+	cond := r.Conditions{
+		Timeout: &timeout,
+		Members: &members,
+	}
+
+	received := make(chan error)
+
+	conditions := NewConditions(cond, suite.zk)
+	go func() {
+		received <- conditions.Wait()
+	}()
+
+	go func() {
+		time.Sleep(1)
+
+		// Set existing
+		CreateOrSet(suite.zk, p.Member("a"), "foo")
+
+		// Delete
+		DeleteObject(suite.zk, p.Member("b"))
+
+		// Now create the node
+		CreateOrSet(suite.zk, p.Member("c"), "foo")
+	}()
+
+	err := <-received
+
+	c.Assert(err, Equals, nil)
+}
+
+/// Use case for looking for a delta change in members
+func (suite *RegistryTests) TestConditionsDeltaMembersLessOne(c *C) {
+
+	p := test_ns("/deltas/test/group")
+	CreateOrSet(suite.zk, p, "bar")
+	CreateOrSet(suite.zk, p.Member("a"), "foo")
+	CreateOrSet(suite.zk, p.Member("b"), "foo")
+	CreateOrSet(suite.zk, p.Member("c"), "foo")
+
+	delta := int32(-1)
+	timeout := r.Timeout(10 * time.Second)
+	members := r.Members{
+		Top:   p,
+		Delta: &delta,
+	}
+
+	cond := r.Conditions{
+		Timeout: &timeout,
+		Members: &members,
+	}
+
+	received := make(chan error)
+
+	conditions := NewConditions(cond, suite.zk)
+	go func() {
+		received <- conditions.Wait()
+	}()
+
+	go func() {
+
+		time.Sleep(1)
+
+		c.Log("Existing")
+		// Set existing
+		CreateOrSet(suite.zk, p.Member("c"), "foo")
+
+		time.Sleep(1)
+
+		// TODO  - this will break the test
+		c.Log("Add new")
+		// Add new node
+		CreateOrSet(suite.zk, p.Member("z"), "foo")
+
+		time.Sleep(1)
+
+		c.Log("Remove")
+		// Now remove the node
+		DeleteObject(suite.zk, p.Member("b"))
+
+	}()
+
+	err := <-received
+	c.Assert(err, Equals, nil)
+	c.Log("Received 1 delta")
 }
 
 func (suite *RegistryTests) TestConditionsMembersEquals(c *C) {

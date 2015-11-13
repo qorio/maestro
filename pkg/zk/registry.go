@@ -25,23 +25,25 @@ type watch interface {
 
 // Implements some utilities for the registry types
 type base struct {
-	zk      ZK
-	stop    chan<- bool
-	timeout time.Duration
-	timer   *time.Timer
-	before  *Node
-	after   *Node
-	done    chan error
-	group   chan<- watch // for sending to the group
-	error   error
+	zk         ZK
+	stop       chan<- bool
+	timeout    time.Duration
+	timer      *time.Timer
+	before     *Node
+	after      *Node
+	done       chan error
+	group      chan<- watch // for sending to the group
+	error      error
+	persistent bool
 }
 
 type Conditions struct {
 	registry.Conditions
 
-	watches map[watch]bool
-	group   chan watch
-	timer   *time.Timer
+	watches    map[watch]bool
+	group      chan watch
+	timer      *time.Timer
+	persistent bool
 }
 
 func (this *Conditions) Pending() []watch {
@@ -58,8 +60,8 @@ type Delete struct {
 }
 
 type Create struct {
-	registry.Create
 	base
+	registry.Create
 }
 
 type Change struct {
@@ -88,7 +90,7 @@ func (this *Conditions) Init(zkc ZK) *Conditions {
 		this.watches = map[watch]bool{}
 	}
 	if this.Delete != nil {
-		w := NewDelete(*this.Delete, zkc)
+		w := NewDelete(*this.Delete, zkc, this.persistent)
 		w.Apply(func(k registry.Key, before, after *Node) bool {
 			glog.V(100).Infoln("Delete:", k.Path(), "Before=", before, "After=", after)
 			return true
@@ -96,7 +98,7 @@ func (this *Conditions) Init(zkc ZK) *Conditions {
 		this.watches[w] = false
 	}
 	if this.Create != nil {
-		w := NewCreate(*this.Create, zkc)
+		w := NewCreate(*this.Create, zkc, this.persistent)
 		w.Apply(func(k registry.Key, before, after *Node) bool {
 			glog.V(100).Infoln("Create:", k.Path(), "Before=", before, "After=", after)
 			return true
@@ -104,7 +106,7 @@ func (this *Conditions) Init(zkc ZK) *Conditions {
 		this.watches[w] = false
 	}
 	if this.Change != nil {
-		w := NewChange(*this.Change, zkc)
+		w := NewChange(*this.Change, zkc, this.persistent)
 		w.Apply(func(k registry.Key, before, after *Node) bool {
 			glog.V(100).Infoln("Change:", k.Path(), "Before=", before, "After=", after)
 			return true
@@ -112,14 +114,12 @@ func (this *Conditions) Init(zkc ZK) *Conditions {
 		this.watches[w] = false
 	}
 	if this.Members != nil {
-		w := NewMembers(*this.Members, zkc)
+		w := NewMembers(*this.Members, zkc, this.persistent)
 		w.Apply(func(k registry.Key, before, after *Node) bool {
-			glog.V(100).Infoln("Members:", k.Path(), "Before=", before, "After=", after)
+			glog.V(100).Infoln("Members:", k.Path(), "Before=", before.Stats.NumChildren, "After=", after.Stats.NumChildren)
 
 			met := false
 			switch {
-			case this.Members.Equals != nil:
-				met = after.Stats.NumChildren == *this.Members.Equals
 			case this.Members.Max != nil && this.Members.Min != nil:
 				if this.Members.OutsideRange {
 					met = after.Stats.NumChildren < *this.Members.Min || after.Stats.NumChildren >= *this.Members.Max
@@ -138,6 +138,10 @@ func (this *Conditions) Init(zkc ZK) *Conditions {
 				} else {
 					met = after.Stats.NumChildren >= *this.Members.Min
 				}
+			case this.Members.Delta != nil:
+				met = after.Stats.NumChildren-before.Stats.NumChildren == *this.Members.Delta
+			case this.Members.Equals != nil:
+				met = after.Stats.NumChildren == *this.Members.Equals
 			}
 			return met
 		})
@@ -207,32 +211,40 @@ func (this *Members) String() string {
 	return this.Members.Path()
 }
 
-func NewConditions(c registry.Conditions, zkc ZK) *Conditions {
-	conditions := &Conditions{Conditions: c}
+func is_true(b ...bool) bool {
+	return len(b) > 0 && b[0]
+}
+
+func NewConditions(c registry.Conditions, zkc ZK, persistent ...bool) *Conditions {
+	conditions := &Conditions{Conditions: c, persistent: is_true(persistent...)}
 	conditions.Init(zkc)
 	return conditions
 }
 
-func NewCreate(c registry.Create, zkc ZK) watch {
+func NewCreate(c registry.Create, zkc ZK, persistent ...bool) watch {
 	create := &Create{Create: c}
+	create.base.persistent = is_true(persistent...)
 	create.base.Init(zkc)
 	return create
 }
 
-func NewDelete(d registry.Delete, zkc ZK) watch {
+func NewDelete(d registry.Delete, zkc ZK, persistent ...bool) watch {
 	delete := &Delete{Delete: d}
+	delete.base.persistent = is_true(persistent...)
 	delete.base.Init(zkc)
 	return delete
 }
 
-func NewChange(c registry.Change, zkc ZK) watch {
+func NewChange(c registry.Change, zkc ZK, persistent ...bool) watch {
 	change := &Change{Change: c}
+	change.base.persistent = is_true(persistent...)
 	change.base.Init(zkc)
 	return change
 }
 
-func NewMembers(m registry.Members, zkc ZK) watch {
+func NewMembers(m registry.Members, zkc ZK, persistent ...bool) watch {
 	members := &Members{Members: m}
+	members.base.persistent = is_true(persistent...)
 	members.base.Init(zkc)
 	return members
 }
@@ -354,16 +366,23 @@ func (this *base) watch(path registry.Key, handler func(Event)) (node *Node, err
 }
 
 func (this *Delete) Apply(handler func(k registry.Key, before, after *Node) bool) error {
-	f := func(e Event) {
-		switch e.Type {
-		case zk.EventNodeDeleted:
-			if handler(*this, this.before, nil) {
-				this.base.notify(this)
-				this.done <- nil
+	if n, err := this.base.watch(this.Delete,
+		func(e Event) {
+			switch e.Type {
+			case zk.EventNodeDeleted:
+				met := handler(*this, this.before, nil)
+				if met {
+					this.base.notify(this)
+					if this.base.persistent {
+						this.Apply(handler)
+					} else {
+						this.done <- nil
+					}
+				} else {
+					this.Apply(handler)
+				}
 			}
-		}
-	}
-	if n, err := this.base.watch(this.Delete, f); err != nil {
+		}); err != nil {
 		return err
 	} else {
 		this.before = n
@@ -372,21 +391,29 @@ func (this *Delete) Apply(handler func(k registry.Key, before, after *Node) bool
 }
 
 func (this *Create) Apply(handler func(k registry.Key, before, after *Node) bool) error {
-	f := func(e Event) {
-		switch e.Type {
-		case zk.EventNodeCreated:
-			after, err := this.zk.Get(this.Create.Path())
-			if err != nil {
-				this.error = err
-				this.done <- err
+	if _, err := this.base.watch(this.Create,
+		func(e Event) {
+			switch e.Type {
+			case zk.EventNodeCreated:
+				after, err := this.zk.Get(this.Create.Path())
+				if err != nil {
+					this.error = err
+					this.done <- err
+				}
+				met := handler(*this, nil, after)
+				this.before = after
+				if met {
+					this.base.notify(this)
+					if this.base.persistent {
+						this.Apply(handler)
+					} else {
+						this.done <- nil
+					}
+				} else {
+					this.Apply(handler)
+				}
 			}
-			if handler(*this, nil, after) {
-				this.base.notify(this)
-				this.done <- nil
-			}
-		}
-	}
-	if _, err := this.base.watch(this.Create, f); err != nil {
+		}); err != nil {
 		return err
 	} else {
 		return nil
@@ -395,23 +422,30 @@ func (this *Create) Apply(handler func(k registry.Key, before, after *Node) bool
 
 // Change notification occurs when node is CREATED or when the value is CHANGED
 func (this *Change) Apply(handler func(k registry.Key, before, after *Node) bool) error {
-	f := func(e Event) {
-		switch e.Type {
-		// Created nil->!nil or change in value
-		case zk.EventNodeDataChanged, zk.EventNodeCreated:
-			after, err := this.zk.Get(this.Path())
-			if err != nil {
-				this.error = err
-				this.done <- err
+	if n, err := this.base.watch(this.Change,
+		func(e Event) {
+			switch e.Type {
+			// Created nil->!nil or change in value
+			case zk.EventNodeDataChanged, zk.EventNodeCreated:
+				after, err := this.zk.Get(this.Path())
+				if err != nil {
+					this.error = err
+					this.done <- err
+				}
+				met := handler(*this, this.before, after)
+				this.before = this.after
+				if met {
+					this.base.notify(this)
+					if this.base.persistent {
+						this.Apply(handler)
+					} else {
+						this.done <- nil
+					}
+				} else {
+					this.Apply(handler)
+				}
 			}
-			if handler(*this, this.before, after) {
-				this.base.notify(this)
-				this.done <- nil
-			}
-		}
-	}
-
-	if n, err := this.base.watch(this.Change, f); err != nil {
+		}); err != nil {
 		return err
 	} else {
 		this.before = n
@@ -420,25 +454,34 @@ func (this *Change) Apply(handler func(k registry.Key, before, after *Node) bool
 }
 
 func (this *Members) Apply(handler func(k registry.Key, before, after *Node) bool) error {
-	f := func(e Event) {
-		switch e.Type {
-		case zk.EventNodeChildrenChanged:
-			after, err := this.zk.Get(this.Top.Path())
-			if err != nil {
-				this.error = err
-				this.done <- err
-			}
-			if handler(*this, this.before, after) {
-				this.base.notify(this)
-				this.done <- nil
-			} else {
-				// Need to register to receive the event again.
-				this.Apply(handler)
-			}
-		}
-	}
+	if n, err := this.base.watch(this.Members,
+		func(e Event) {
+			glog.Infoln(">>>>>EVENT=", e)
+			switch e.Type {
+			case zk.EventNodeChildrenChanged:
+				after, err := this.zk.Get(this.Top.Path())
+				if err != nil {
+					this.error = err
+					this.done <- err
+				}
 
-	if n, err := this.base.watch(this.Members, f); err != nil {
+				met := handler(*this, this.before, after)
+				this.before = after
+
+				if met {
+					this.base.notify(this)
+					if this.base.persistent {
+						// Need to register to receive the event again.
+						this.Apply(handler)
+					} else {
+						this.done <- nil
+					}
+				} else {
+					// Need to register to receive the event again.
+					this.Apply(handler)
+				}
+			}
+		}); err != nil {
 		return err
 	} else {
 		this.before = n

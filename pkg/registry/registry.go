@@ -75,6 +75,7 @@ type Members struct {
 	Max          *int32 `json:"max,omitempty"`
 	Equals       *int32 `json:"eq,omitempty"`
 	OutsideRange bool   `json:"outside_range,omitempty"` // default is within range.  true for outside range.
+	Delta        *int32 `json:"delta,omitempty"`         // delta of count
 }
 
 func (p Path) Path() string {
