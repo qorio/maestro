@@ -5,10 +5,21 @@ import (
 	"errors"
 	"github.com/golang/glog"
 	"github.com/samuel/go-zookeeper/zk"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 )
+
+func ZkHosts() []string {
+	servers := []string{"localhost:2181"}
+	list := os.Getenv("ZK_HOSTS")
+	if len(list) > 0 {
+		servers = strings.Split(list, ",")
+	}
+	glog.Infoln("ZK_HOSTS:", servers)
+	return servers
+}
 
 var (
 	ErrNotConnected   = errors.New("zk-not-initialized")

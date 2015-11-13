@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"github.com/golang/glog"
 	"github.com/qorio/maestro/pkg/registry"
 	"github.com/qorio/maestro/pkg/zk"
@@ -22,6 +23,12 @@ var (
 	ErrMissingTemplateFunc  = errors.New("no-template-func")
 	ErrBadTemplateFunc      = errors.New("err-bad-template-func")
 )
+
+func FileModeFromString(perm string) os.FileMode {
+	fm := new(os.FileMode)
+	fmt.Sscanf(perm, "%v", fm)
+	return *fm
+}
 
 func ApplyTemplate(body string, context interface{}, funcs ...template.FuncMap) (string, error) {
 	var t *template.Template
@@ -185,7 +192,7 @@ func ExecuteTemplateUrl(zc zk.ZK, url string, authToken string, data interface{}
 			}
 			return content, nil
 		},
-		"file": func(url string, path ...string) (string, error) {
+		"file": func(url string, opts ...string) (string, error) {
 			// We support variables inside the function argument
 			u, err := apply_template(url, url, data)
 			if err != nil {
@@ -197,8 +204,8 @@ func ExecuteTemplateUrl(zc zk.ZK, url string, authToken string, data interface{}
 			}
 			// Write to local file and return the path
 			parent := os.TempDir()
-			if len(path) > 0 {
-				parent = path[0]
+			if len(opts) >= 1 {
+				parent = opts[0]
 				// We support variables inside the function argument
 				p, err := apply_template(parent, parent, data)
 				if err != nil {
@@ -206,6 +213,13 @@ func ExecuteTemplateUrl(zc zk.ZK, url string, authToken string, data interface{}
 				}
 				parent = string(p)
 			}
+
+			var perm os.FileMode = 0777
+			if len(opts) >= 2 {
+				permString := opts[1]
+				perm = FileModeFromString(permString)
+			}
+
 			// path can be either a filepath or a directory
 			// check the path to see if it's a directory
 			fpath := parent
@@ -217,12 +231,13 @@ func ExecuteTemplateUrl(zc zk.ZK, url string, authToken string, data interface{}
 				// build the name
 				fpath = filepath.Join(parent, filepath.Base(string(u)))
 			}
-			glog.Infoln("Writing to", fpath)
-			err = ioutil.WriteFile(fpath, []byte(content), 0777)
+			glog.Infoln("Writing to", fpath, "perm=", perm.String()))
+			err = ioutil.WriteFile(fpath, []byte(content), perm)
 			glog.Infoln("Written", len([]byte(content)), " bytes to", fpath, "Err=", err)
 			if err != nil {
 				return "", err
 			}
+
 			return fpath, nil
 		},
 	}

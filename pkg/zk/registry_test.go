@@ -18,11 +18,11 @@ type RegistryTests struct {
 var _ = Suite(&RegistryTests{})
 
 func (suite *RegistryTests) SetUpSuite(c *C) {
-	z, err := Connect(test_zkhosts(), 5*time.Second)
+	z, err := Connect(ZkHosts(), 5*time.Second)
 	c.Assert(err, Equals, nil)
 	suite.zk = z
 
-	z2, err := Connect(test_zkhosts(), 5*time.Second)
+	z2, err := Connect(ZkHosts(), 5*time.Second)
 	c.Assert(err, Equals, nil)
 	suite.zk2 = z2
 }

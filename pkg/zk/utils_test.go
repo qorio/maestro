@@ -16,7 +16,7 @@ type TestSuiteUtils struct {
 var _ = Suite(&TestSuiteUtils{})
 
 func (suite *TestSuiteUtils) SetUpSuite(c *C) {
-	zc, err := Connect(test_zkhosts(), 1*time.Second)
+	zc, err := Connect(ZkHosts(), 1*time.Second)
 	c.Assert(err, Equals, nil)
 	suite.zc = zc
 }

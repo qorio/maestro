@@ -25,7 +25,7 @@ var _ = Suite(&TestSuiteFetch{})
 // psql> create role ubuntu login password 'password';
 // psql> create database circle_ci with owner ubuntu encoding 'UTF8';
 func (suite *TestSuiteFetch) SetUpSuite(c *C) {
-	zc, err := zk.Connect([]string{"localhost:2181"}, 1*time.Second)
+	zc, err := zk.Connect(zk.ZkHosts(), 1*time.Second)
 	c.Assert(err, Equals, nil)
 	suite.zc = zc
 }
@@ -41,6 +41,18 @@ func (suite *TestSuiteFetch) TestFetchUrl(c *C) {
 	value, _, err := FetchUrl("env:///unit-test/ref", nil, suite.zc)
 	c.Assert(err, Equals, nil)
 	c.Assert(value, Equals, "object1")
+}
+
+func (suite *TestSuiteFetch) TestFileModePerms(c *C) {
+	perm := FileModeFromString("0777")
+	c.Log("FileMode=", perm.String())
+	c.Assert(perm.String(), Equals, "-rwxrwxrwx")
+	perm = FileModeFromString("0644")
+	c.Log("FileMode=", perm.String())
+	c.Assert(perm.String(), Equals, "-rw-r--r--")
+	perm = FileModeFromString("0600")
+	c.Log("FileMode=", perm.String())
+	c.Assert(perm.String(), Equals, "-rw-------")
 }
 
 func (suite *TestSuiteFetch) TestFetchAndExecuteTemplate(c *C) {

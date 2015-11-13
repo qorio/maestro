@@ -15,13 +15,13 @@ type ZkTests struct{}
 var _ = Suite(&ZkTests{})
 
 func (suite *ZkTests) TearDownSuite(c *C) {
-	z, err := Connect(test_zkhosts(), 5*time.Second)
+	z, err := Connect(ZkHosts(), 5*time.Second)
 	c.Assert(err, Equals, nil)
 	z.Delete("/unit-test") // TODO - this fails before there are children under this node
 }
 
 func (suite *ZkTests) TestConnect(c *C) {
-	z, err := Connect(test_zkhosts(), 5*time.Second)
+	z, err := Connect(ZkHosts(), 5*time.Second)
 	c.Assert(err, Equals, nil)
 	c.Log("Got client", z)
 	c.Assert(z.conn, Not(Equals), nil)
@@ -35,7 +35,7 @@ func (suite *ZkTests) TestConnect(c *C) {
 }
 
 func (suite *ZkTests) TestBasicOperations(c *C) {
-	z, err := Connect(test_zkhosts(), time.Second)
+	z, err := Connect(ZkHosts(), time.Second)
 	c.Assert(err, Equals, nil)
 
 	defer z.Close()
@@ -96,7 +96,7 @@ func (suite *ZkTests) TestBasicOperations(c *C) {
 }
 
 func (suite *ZkTests) TestFullPathObjects(c *C) {
-	z, err := Connect(test_zkhosts(), time.Second)
+	z, err := Connect(ZkHosts(), time.Second)
 	c.Assert(err, Equals, nil)
 
 	defer z.Close()
@@ -138,7 +138,7 @@ func (suite *ZkTests) TestFullPathObjects(c *C) {
 }
 
 func (suite *ZkTests) TestAppEnvironments(c *C) {
-	z, err := Connect(test_zkhosts(), time.Second)
+	z, err := Connect(ZkHosts(), time.Second)
 	c.Assert(err, Equals, nil)
 
 	defer z.Close()
@@ -181,7 +181,7 @@ func (suite *ZkTests) TestAppEnvironments(c *C) {
 }
 
 func (suite *ZkTests) TestEphemeral(c *C) {
-	z1, err := Connect(test_zkhosts(), time.Second)
+	z1, err := Connect(ZkHosts(), time.Second)
 	c.Assert(err, Equals, nil)
 
 	p := "/unit-test/e1/e2"
@@ -198,7 +198,7 @@ func (suite *ZkTests) TestEphemeral(c *C) {
 	c.Assert(err, Equals, nil)
 	c.Log("top1", top11)
 
-	z2, err := Connect(test_zkhosts(), time.Second)
+	z2, err := Connect(ZkHosts(), time.Second)
 	c.Assert(err, Equals, nil)
 	top2, err := z2.Get(p + "/11")
 	c.Assert(err, Not(Equals), ErrNotExist)
@@ -219,7 +219,7 @@ func (suite *ZkTests) TestEphemeral(c *C) {
 }
 
 func (suite *ZkTests) TestWatcher(c *C) {
-	z1, err := Connect(test_zkhosts(), time.Second)
+	z1, err := Connect(ZkHosts(), time.Second)
 	c.Assert(err, Equals, nil)
 
 	p := "/unit-test/e1/e2"
@@ -237,7 +237,7 @@ func (suite *ZkTests) TestWatcher(c *C) {
 	c.Log("top1", top11)
 
 	// Watched by another client
-	z2, err := Connect(test_zkhosts(), time.Second)
+	z2, err := Connect(ZkHosts(), time.Second)
 	c.Assert(err, Equals, nil)
 
 	top22, err := z2.Get(p + "/11")
