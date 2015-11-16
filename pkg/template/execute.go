@@ -17,30 +17,6 @@ func ApplyTemplate(body string, context interface{}, funcs ...template.FuncMap) 
 	return string(content), err
 }
 
-func ApplyTemplate0(body string, context interface{}, funcs ...template.FuncMap) (string, error) {
-	var t *template.Template
-	var err error
-
-	if len(funcs) > 0 {
-		t, err = template.New(body).Funcs(funcs[0]).Parse(body)
-		if err != nil {
-			return "", err
-		}
-	} else {
-		t, err = template.New(body).Parse(body)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	var buff bytes.Buffer
-	if err := t.Execute(&buff, context); err != nil {
-		return "", err
-	} else {
-		return buff.String(), nil
-	}
-}
-
 func ExecuteUrl(zc zk.ZK, url string, authToken string, data interface{}, funcs ...template.FuncMap) ([]byte, error) {
 	headers := map[string]string{}
 	if len(authToken) > 0 {
@@ -91,7 +67,6 @@ func ExecuteUrl(zc zk.ZK, url string, authToken string, data interface{}, funcs 
 			if err != nil {
 				return nil, err
 			}
-			glog.Infoln(">>>>>>", string(p))
 			return hostport_list_from_zk(zc, string(p), service_port)
 		},
 		"host": func() int {

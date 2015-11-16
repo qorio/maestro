@@ -85,3 +85,15 @@ upstream backend { {{range members "/{{.Domain}}/{{.Service}}/v1/containers"}}
 	c.Assert(err, Equals, nil)
 	c.Log("config= ", string(applied))
 }
+
+func (suite *TestSuiteExecute) TestFetchAndExecuteShell(c *C) {
+	test_shell := `
+{{shell "date && ls -al | wc -l"}}
+`
+	content_url := test_url("test_shell.conf", test_shell)
+	applied, err := ExecuteUrl(suite.zc, content_url, "", map[string]string{
+		"Domain": "test.com", "Service": "testapp",
+	})
+	c.Assert(err, Equals, nil)
+	c.Log("config= ", string(applied))
+}

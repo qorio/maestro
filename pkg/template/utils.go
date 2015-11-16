@@ -43,9 +43,7 @@ func apply_template(key, tmpl string, data interface{}, funcMap ...template.Func
 
 // Supports references -- if the value of the node is env:///.. then resolve the reference.
 func hostport_list_from_zk(zc zk.ZK, containers_path, service_port string) ([]interface{}, error) {
-
 	n, err := zk.Follow(zc, registry.Path(containers_path))
-	fmt.Println(">>>>>>2", n, err)
 	if err != nil {
 		return nil, err
 	}

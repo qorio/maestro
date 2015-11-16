@@ -33,7 +33,7 @@ func ExecuteShell(line string) error {
 	if err := c.Start(); err != nil {
 		return err
 	}
-	glog.Infoln("start:", line)
+	glog.Infoln("Start:", line)
 
 	if _, err := stdin.Write([]byte(line)); err != nil {
 		stdin.Close()
@@ -41,7 +41,7 @@ func ExecuteShell(line string) error {
 	}
 	stdin.Close() // finished
 	err = c.Wait()
-
+	glog.Infoln("Process wait completed:", err)
 	if ee, ok := err.(*exec.ExitError); ok {
 		glog.Infoln("PID", ee.Pid(), " - Process state", ee.Success())
 	}
