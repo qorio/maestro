@@ -44,10 +44,16 @@ func FetchUrl(urlRef string, headers map[string]string, zc ...zk.ZK) (body strin
 
 	case strings.Index(urlRef, "file://") == 0:
 		file := urlRef[len("file://"):]
-		if strings.Index(file, "~") > -1 {
+
+		switch {
+		case strings.Index(file, "~") > -1:
 			// expand tilda
-			file = strings.Replace(file, "~", os.Getenv("HOME"), -1)
+			file = strings.Replace(file, "~", os.Getenv("HOME"), 1)
+		case strings.Index(file, "./") > -1:
+			// expand tilda
+			file = strings.Replace(file, "./", os.Getenv("PWD")+"/", 1)
 		}
+
 		f, err := os.Open(file)
 		if err != nil {
 			return "", "", err

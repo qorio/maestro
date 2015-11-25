@@ -112,33 +112,52 @@ func ExecuteUrl(zc zk.ZK, url string, authToken string, data interface{}, funcs 
 			}
 			// Write to local file and return the path, unless the
 			// path is provided.
-			parent := os.TempDir()
+			destination := os.TempDir()
+			// the destination path is given
 			if len(opts) >= 1 {
-				parent = opts[0]
+				destination = opts[0]
 				// We support variables inside the function argument
-				p, err := apply_template(parent, parent, data)
+				p, err := apply_template(destination, destination, data)
 				if err != nil {
 					return "", err
 				}
-				parent = string(p)
+				destination = string(p)
+				switch {
+				case strings.Index(destination, "~") > -1:
+					// expand tilda
+					destination = strings.Replace(destination, "~", os.Getenv("HOME"), 1)
+				case strings.Index(destination, "./") > -1:
+					// expand tilda
+					destination = strings.Replace(destination, "./", os.Getenv("PWD")+"/", 1)
+				}
 			}
 			// Default permission unless it's provided
-			var perm os.FileMode = 0777
+			var perm os.FileMode = 0644
 			if len(opts) >= 2 {
 				permString := opts[1]
 				perm = FileModeFromString(permString)
 			}
-			// path can be either a filepath or a directory
-			// check the path to see if it's a directory
-			fpath := parent
+			fpath := destination
+			parent := filepath.Dir(fpath)
 			fi, err := os.Stat(parent)
-			if os.IsNotExist(err) || !fi.IsDir() {
-				// use the path as is
-				fpath = parent
-			} else if fi.IsDir() {
-				// build the name
-				fpath = filepath.Join(parent, filepath.Base(string(applied_url)))
+			if err != nil {
+				switch {
+				case os.IsNotExist(err):
+					err = os.MkdirAll(parent, 0777)
+					if err != nil {
+						return "", err
+					}
+				default:
+					return "", err
+				}
 			}
+			// read again after we created the directories
+			fi, err = os.Stat(fpath)
+			if err == nil && fi.IsDir() {
+				// build the name because we provided only a directory path
+				fpath = filepath.Join(destination, filepath.Base(string(applied_url)))
+			}
+
 			err = ioutil.WriteFile(fpath, []byte(content), perm)
 			glog.Infoln("Written", len([]byte(content)), " bytes to", fpath, "perm=", perm.String(), "Err=", err)
 			if err != nil {
