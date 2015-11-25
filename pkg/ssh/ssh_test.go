@@ -69,7 +69,7 @@ func (suite *SSHTests) TestParsingPublicKey(c *C) {
 	c.Log("user=", pk.User)
 }
 
-func (suite *SSHTests) TestExecute(c *C) {
+func (suite *SSHTests) DISABLE_TestExecute(c *C) {
 
 	auth, err := KeyBytesAuthMethod([]byte(rsa_key))
 	c.Assert(err, Equals, nil)
@@ -82,7 +82,7 @@ func (suite *SSHTests) TestExecute(c *C) {
 	}
 }
 
-func (suite *SSHTests) TestAgent(c *C) {
+func (suite *SSHTests) DISABLE_TestAgent(c *C) {
 	if os.Getenv("SKIP_SSH_AGENT_TEST") == "true" {
 		return
 	}
