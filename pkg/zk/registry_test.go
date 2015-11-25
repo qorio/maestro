@@ -437,7 +437,7 @@ func (suite *RegistryTests) TestConditionsDeltaMembers(c *C) {
 }
 
 /// Use case for looking for a delta change in members
-func (suite *RegistryTests) DISABLED_TestConditionsDeltaMembersLessOneMultipleOps(c *C) {
+func (suite *RegistryTests) DISABLE_TestConditionsDeltaMembersLessOneMultipleOps(c *C) {
 
 	p := test_ns("/deltas/test/group")
 	CreateOrSet(suite.zk, p, "bar")

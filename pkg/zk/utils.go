@@ -8,26 +8,43 @@ import (
 	"strings"
 )
 
+const (
+	PrefixEnv = "env://"
+	PrefixZk  = "zk://"
+)
+
 // Node value
 func Follow(zc ZK, key registry.Path) (*Node, error) {
 	n, err := zc.Get(key.Path())
 	if err != nil {
 		return nil, err
 	}
-	if strings.Index(n.GetValueString(), "env://") == 0 {
-		next := n.GetValueString()[len("env://"):]
+
+	switch {
+	case strings.Index(n.GetValueString(), PrefixEnv) == 0:
+		next := n.GetValueString()[len(PrefixEnv):]
 		return Follow(zc, registry.Path(next))
-	} else {
+	case strings.Index(n.GetValueString(), PrefixZk) == 0:
+		next := n.GetValueString()[len(PrefixZk):]
+		return Follow(zc, registry.Path(next))
+	default:
 		return n, nil
 	}
+
+	// if strings.Index(n.GetValueString(), PrefixEnv) == 0 {
+	// 	next := n.GetValueString()[len(PrefixEnv):]
+	// 	return Follow(zc, registry.Path(next))
+	// } else {
+	// 	return n, nil
+	// }
 }
 
 // If value begins with env:// then automatically resolve the pointer recursively.
 // Returns key, value, error
 func Resolve(zc ZK, key registry.Path, value string) (registry.Path, string, error) {
 	// de-reference the pointer...
-	if strings.Index(value, "env://") == 0 {
-		p := value[len("env://"):]
+	if strings.Index(value, PrefixEnv) == 0 {
+		p := value[len(PrefixEnv):]
 		n, err := zc.Get(p)
 		switch {
 		case err == ErrNotExist:
