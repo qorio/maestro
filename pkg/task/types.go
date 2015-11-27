@@ -63,8 +63,6 @@ type Task struct {
 	Success registry.Path `json:"success,omitempty"`
 	Error   registry.Path `json:"error,omitempty"`
 
-	Context *registry.Path `json:"context"`
-
 	// Conditional execution
 	Trigger *Trigger `json:"trigger,omitempty"`
 
