@@ -19,9 +19,17 @@ import (
 )
 
 var (
-	ErrBadConfig = errors.New("bad-config")
-	ErrStopped   = errors.New("stopped")
-	ErrTimeout   = errors.New("timeout")
+	ErrBadConfig            = errors.New("bad-config")
+	ErrBadConfigInfo        = errors.New("bad-config-info")
+	ErrBadConfigStatus      = errors.New("bad-config-status")
+	ErrBadConfigSuccess     = errors.New("bad-config-success")
+	ErrBadConfigError       = errors.New("bad-config-error")
+	ErrBadConfigCmdNotFound = errors.New("bad-config-cmd-not-found")
+
+	ErrStopped = errors.New("stopped")
+	ErrTimeout = errors.New("timeout")
+
+	stop_announce = Announce{Key: "stop"}
 )
 
 type Runtime struct {
@@ -29,10 +37,11 @@ type Runtime struct {
 
 	zk zk.ZK
 
-	status chan []byte
-	stdout chan []byte
-	stderr chan []byte
-	stdin  chan []byte
+	announce chan Announce
+	status   chan []byte
+	stdout   chan []byte
+	stderr   chan []byte
+	stdin    chan []byte
 
 	options interface{}
 	done    bool
@@ -61,7 +70,6 @@ func (this *Task) Copy() (*Task, error) {
 }
 
 func (this *Task) Validate() error {
-
 	if this.ExecOnly {
 		switch {
 		case this.Id == "":
@@ -80,17 +88,17 @@ func (this *Task) Validate() error {
 	// If we are in Orchestration mode then a lot more needs to be set
 	switch {
 	case !this.Info.Valid():
-		return ErrBadConfig
+		return ErrBadConfigInfo
 	case !this.Status.Valid():
-		return ErrBadConfig
+		return ErrBadConfigStatus
 	case len(this.Success) > 0 && !this.Success.Valid():
-		return ErrBadConfig
+		return ErrBadConfigSuccess
 	case len(this.Error) > 0 && !this.Error.Valid():
-		return ErrBadConfig
+		return ErrBadConfigError
 	case this.Cmd != nil:
 		_, err := exec.LookPath(this.Cmd.Path)
 		if err != nil {
-			return err
+			return ErrBadConfigCmdNotFound
 		}
 	}
 	return nil
@@ -110,6 +118,10 @@ func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
 	}
 	task.status = make(chan []byte)
 
+	if task.announce == nil {
+		task.announce = make(chan Announce, 10)
+	}
+
 	if task.Task.Stdout != nil {
 		task.stdout = make(chan []byte)
 	}
@@ -124,15 +136,19 @@ func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
 	}
 
 	now := time.Now()
-	task.Stat.Started = &now
+	task.Stats.Started = &now
 
-	if task.zk != nil && task.Info != "" {
-		err := zk.CreateOrSet(task.zk, task.Info, task.Stat)
+	if task.zk != nil && len(task.Info) > 0 {
+		err := zk.CreateOrSet(task.zk, task.Info, task.Stats)
 		glog.Infoln("Info=", task.Info)
 		if err != nil {
 			return nil, err
 		}
 	}
+
+	task.set_defaults()
+	task.start_announcer()
+
 	return &task, nil
 }
 
@@ -154,6 +170,10 @@ func (this *Runtime) Stop() {
 	this.status <- nil
 
 	this.done = true
+}
+
+func (this *Runtime) Announce() chan<- Announce {
+	return this.announce
 }
 
 func (this *Runtime) StdinInterceptor(f func(string) (string, bool)) {
@@ -279,8 +299,6 @@ func (this *Runtime) set_defaults() {
 }
 
 func (this *Runtime) Start() (chan error, error) {
-	this.set_defaults()
-
 	if _, _, err := this.start_streams(); err != nil {
 		return nil, err
 	}
@@ -296,6 +314,50 @@ func (this *Runtime) Start() (chan error, error) {
 		return this.exec()
 	}
 	return nil, nil
+}
+
+// Announcer will publish to registry at the client's request.
+func (this *Runtime) start_announcer() {
+	if this.zk == nil {
+		glog.Infoln("No ZK. Not running announcer.")
+		return
+	}
+	if this.Announce == nil {
+		glog.Infoln("No announcement namespace defined.  Not announcing.")
+		return
+	}
+	go func() {
+		for {
+			if a := <-this.announce; a == stop_announce {
+				glog.Infoln("Stopping announcer")
+				break
+			} else {
+				key := a.Key
+				if len(key) == 0 {
+					key = fmt.Sprintf("%d", time.Now().Unix())
+				}
+
+				path := this.AnnounceNamespace.Sub(key)
+				var err error
+				switch a.Value.(type) {
+				case []byte:
+					err = zk.CreateOrSetBytes(this.zk, path, a.Value.([]byte), a.Ephemeral)
+				case string:
+					err = zk.CreateOrSetString(this.zk, path, a.Value.(string), a.Ephemeral)
+				default:
+					if value, err := json.Marshal(a.Value); err == nil {
+						err = zk.CreateOrSetBytes(this.zk, path, value, a.Ephemeral)
+					}
+				}
+
+				if err != nil {
+					this.Log("Cannot annouce to", path.Path(), "Err=", err.Error())
+				} else {
+					this.Log("ANNOUNCE", path.Path())
+				}
+			}
+		}
+	}()
 }
 
 func (this *Runtime) block_on_triggers() error {
@@ -497,8 +559,8 @@ func (this *Runtime) Success(output interface{}) error {
 	this.Log("Success", "Result written to", this.Task.Success.Path())
 
 	now := time.Now()
-	this.Stat.Success = &now
-	err := zk.CreateOrSet(this.zk, this.Info, this.Stat)
+	this.Stats.Success = &now
+	err := zk.CreateOrSet(this.zk, this.Info, this.Stats)
 	if err != nil {
 		return err
 	}
@@ -548,8 +610,8 @@ func (this *Runtime) Error(error interface{}) error {
 	this.Log("Error", "Error written to", this.Task.Error.Path())
 
 	now := time.Now()
-	this.Stat.Error = &now
-	err := zk.CreateOrSet(this.zk, this.Info, this.Stat)
+	this.Stats.Error = &now
+	err := zk.CreateOrSet(this.zk, this.Info, this.Stats)
 	if err != nil {
 		return err
 	}

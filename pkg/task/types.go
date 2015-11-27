@@ -38,6 +38,12 @@ type Cmd struct {
 	Env  []string `json:"env"`
 }
 
+type Announce struct {
+	Key       string
+	Value     interface{}
+	Ephemeral bool
+}
+
 type TaskName string
 type Task struct {
 	// Required
@@ -49,9 +55,13 @@ type Task struct {
 
 	Name TaskName `json:"name"`
 
-	Info    registry.Path `json:"info"`
-	Success registry.Path `json:"success"`
-	Error   registry.Path `json:"error"`
+	// Optional namespace for task related announcements in the regstry.
+	AnnounceNamespace *registry.Path `json:"announce,omitempty"`
+
+	// Optional registry paths to set success / failure signals
+	Info    registry.Path `json:"info,omitempty"`
+	Success registry.Path `json:"success,omitempty"`
+	Error   registry.Path `json:"error,omitempty"`
 
 	Context *registry.Path `json:"context"`
 
@@ -66,7 +76,7 @@ type Task struct {
 
 	Runs int `json:"runs,omitempty"`
 
-	Stat TaskStat `json:"stat,omitempty"`
+	Stats TaskStats `json:"stats,omitempty"`
 
 	PrintPre        string `json:"print_pre,omitempty"`
 	PrintPost       string `json:"print_post,omitempty"`
@@ -75,7 +85,7 @@ type Task struct {
 }
 
 // Written to the Info path of the task
-type TaskStat struct {
+type TaskStats struct {
 	Started   *time.Time `json:"started,omitempty"`
 	Triggered *time.Time `json:"triggered,omitempty"`
 	Success   *time.Time `json:"success,omitempty"`
