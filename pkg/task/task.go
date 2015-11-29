@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 )
 
@@ -34,6 +35,9 @@ var (
 
 type Runtime struct {
 	Task
+
+	TimestampStart time.Time
+	TimestampExit  time.Time
 
 	zk zk.ZK
 
@@ -87,18 +91,44 @@ func (this *Task) Validate() error {
 
 	// If we are in Orchestration mode then a lot more needs to be set
 	switch {
-	case !this.Info.Valid():
+	case this.Namespace != nil && !this.Namespace.Valid():
 		return ErrBadConfigInfo
-	case !this.Status.Valid():
+	case !this.LogTopic.Valid():
 		return ErrBadConfigStatus
-	case len(this.Success) > 0 && !this.Success.Valid():
+	case this.Success != nil && !this.Success.Valid():
 		return ErrBadConfigSuccess
-	case len(this.Error) > 0 && !this.Error.Valid():
+	case this.Error != nil && !this.Error.Valid():
 		return ErrBadConfigError
 	case this.Cmd != nil:
 		_, err := exec.LookPath(this.Cmd.Path)
 		if err != nil {
 			return ErrBadConfigCmdNotFound
+		}
+	}
+
+	var err error
+	if this.LogTemplateStart != nil {
+		this.templateStart, err = template.New(*this.LogTemplateStart).Parse(*this.LogTemplateStart)
+		if err != nil {
+			return err
+		}
+	}
+	if this.LogTemplateStop != nil {
+		this.templateStop, err = template.New(*this.LogTemplateStop).Parse(*this.LogTemplateStop)
+		if err != nil {
+			return err
+		}
+	}
+	if this.LogTemplateSuccess != nil {
+		this.templateSuccess, err = template.New(*this.LogTemplateSuccess).Parse(*this.LogTemplateSuccess)
+		if err != nil {
+			return err
+		}
+	}
+	if this.LogTemplateError != nil {
+		this.templateError, err = template.New(*this.LogTemplateError).Parse(*this.LogTemplateError)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -138,14 +168,6 @@ func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
 	now := time.Now()
 	task.Stats.Started = &now
 
-	if task.zk != nil && len(task.Info) > 0 {
-		err := zk.CreateOrSet(task.zk, task.Info, task.Stats)
-		glog.Infoln("Info=", task.Info)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	task.set_defaults()
 	task.start_announcer()
 
@@ -153,6 +175,9 @@ func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
 }
 
 func (this *Runtime) Stop() {
+
+	this.Log(this.build_message(this.templateStop))
+
 	this.lock.Lock()
 	defer this.lock.Unlock()
 
@@ -166,9 +191,7 @@ func (this *Runtime) Stop() {
 	if this.stderr != nil {
 		this.stderr <- nil
 	}
-	this.Log("Stop")
 	this.status <- nil
-
 	this.done = true
 }
 
@@ -242,18 +265,20 @@ func (this *Runtime) Stderr() io.Writer {
 	}
 }
 
-func (this *Runtime) Log(m ...string) {
-	if this.done {
+func (this *Runtime) Log(m ...interface{}) {
+	switch {
+	case len(m) == 0:
+		return
+	case this.done:
 		return
 	}
+
 	source := ""
 	_, file, line, ok := runtime.Caller(1)
 	if ok {
 		source = fmt.Sprintf("%s:%d", file, line)
 	}
-
-	s := strings.Join(m, " ")
-	this.status <- []byte(s)
+	this.status <- []byte(fmt.Sprint(m...))
 	glog.Infoln(source, m)
 }
 
@@ -278,32 +303,38 @@ func (this *Runtime) ApplyEnvAndFuncs(env map[string]interface{}, funcs map[stri
 }
 
 func (this *Runtime) set_defaults() {
-	if len(this.Task.Success) == 0 {
-		this.Task.Success = this.Info.Member("success")
-	}
-
-	if len(this.Task.Error) == 0 {
-		this.Task.Error = this.Info.Member("error")
-	}
-
-	if len(this.Status) > 0 {
+	if len(this.LogTopic) > 0 {
 		if this.Task.Stdout == nil {
-			t := this.Status.Sub("stdout")
+			t := this.LogTopic.Sub("stdout")
 			this.Task.Stdout = &t
 		}
 		if this.Task.Stderr == nil {
-			t := this.Status.Sub("stderr")
+			t := this.LogTopic.Sub("stderr")
 			this.Task.Stderr = &t
 		}
 	}
 }
 
+func (this *Runtime) build_message(t *template.Template) []interface{} {
+	if t == nil {
+		return []interface{}{}
+	}
+	var buff bytes.Buffer
+	err := t.Execute(&buff, this)
+	if err != nil {
+		return []interface{}{}
+	}
+	return []interface{}{buff.String()}
+}
+
 func (this *Runtime) Start() (chan error, error) {
+	this.TimestampStart = time.Now()
+
 	if _, _, err := this.start_streams(); err != nil {
 		return nil, err
 	}
 
-	this.Log(fmt.Sprintf("****,[,%d,%s,%s", time.Now().Unix(), this.Task.Name, this.Task.PrintPre))
+	this.Log(this.build_message(this.templateStart)...)
 
 	if err := this.block_on_triggers(); err == zk.ErrTimeout {
 		return nil, ErrTimeout
@@ -318,46 +349,53 @@ func (this *Runtime) Start() (chan error, error) {
 
 // Announcer will publish to registry at the client's request.
 func (this *Runtime) start_announcer() {
-	if this.zk == nil {
-		glog.Infoln("No ZK. Not running announcer.")
-		return
-	}
-	if this.Announce == nil {
-		glog.Infoln("No announcement namespace defined.  Not announcing.")
-		return
-	}
-	go func() {
-		for {
-			if a := <-this.announce; a == stop_announce {
-				glog.Infoln("Stopping announcer")
-				break
-			} else {
-				key := a.Key
-				if len(key) == 0 {
-					key = fmt.Sprintf("%d", time.Now().Unix())
-				}
-
-				path := this.AnnounceNamespace.Sub(key)
-				var err error
-				switch a.Value.(type) {
-				case []byte:
-					err = zk.CreateOrSetBytes(this.zk, path, a.Value.([]byte), a.Ephemeral)
-				case string:
-					err = zk.CreateOrSetString(this.zk, path, a.Value.(string), a.Ephemeral)
-				default:
-					if value, err := json.Marshal(a.Value); err == nil {
-						err = zk.CreateOrSetBytes(this.zk, path, value, a.Ephemeral)
-					}
-				}
-
-				if err != nil {
-					this.Log("Cannot annouce to", path.Path(), "Err=", err.Error())
+	switch {
+	case this.zk == nil, this.Namespace == nil:
+		glog.Infoln("No zk or no announcement namespace defined.  Not announcing.")
+		go func() {
+			for {
+				if a := <-this.announce; a == stop_announce {
+					glog.Infoln("Stopping announcer")
+					break
 				} else {
-					this.Log("ANNOUNCE", path.Path())
+					glog.Infoln("Skipping announcement:", a)
 				}
 			}
-		}
-	}()
+		}()
+	default:
+		go func() {
+			for {
+				if a := <-this.announce; a == stop_announce {
+					glog.Infoln("Stopping announcer")
+					break
+				} else {
+					key := a.Key
+					if len(key) == 0 {
+						key = fmt.Sprintf("%d", time.Now().Unix())
+					}
+
+					path := this.Namespace.Sub(key)
+					var err error
+					switch a.Value.(type) {
+					case []byte:
+						err = zk.CreateOrSetBytes(this.zk, path, a.Value.([]byte), a.Ephemeral)
+					case string:
+						err = zk.CreateOrSetString(this.zk, path, a.Value.(string), a.Ephemeral)
+					default:
+						if value, err := json.Marshal(a.Value); err == nil {
+							err = zk.CreateOrSetBytes(this.zk, path, value, a.Ephemeral)
+						}
+					}
+
+					if err != nil {
+						this.Log("Cannot annouce to", path.Path(), "Err=", err.Error())
+					} else {
+						this.Log("ANNOUNCE", path.Path())
+					}
+				}
+			}
+		}()
+	}
 }
 
 func (this *Runtime) block_on_triggers() error {
@@ -477,10 +515,10 @@ func (this *Runtime) start_streams() (stdout, stderr chan<- []byte, err error) {
 			if m == nil {
 				break
 			}
-			if c, err := this.Task.Status.Broker().PubSub(this.Id, this.options); err == nil {
-				c.Publish(this.Task.Status, m)
+			if c, err := this.Task.LogTopic.Broker().PubSub(this.Id, this.options); err == nil {
+				c.Publish(this.Task.LogTopic, m)
 			} else {
-				glog.Warningln("Cannot publish:", this.Task.Status.String(), "Err=", err)
+				glog.Warningln("Cannot publish:", this.Task.LogTopic.String(), "Err=", err)
 			}
 		}
 	}()
@@ -524,98 +562,99 @@ func (this *Runtime) start_streams() (stdout, stderr chan<- []byte, err error) {
 }
 
 func (this *Runtime) Success(output interface{}) error {
-	defer this.Log(fmt.Sprintf("****,],%d,%s,%s", time.Now().Unix(), this.Task.Name, this.Task.PrintPost))
+	defer this.Log(this.build_message(this.templateSuccess)...)
 
 	if this.zk == nil {
 		glog.Infoln("Not connected to zk.  Output not recorded")
 		return nil
 	}
-
 	if this.done {
 		return ErrStopped
 	}
 
-	switch output.(type) {
-	case []byte:
-		err := zk.CreateOrSetBytes(this.zk, this.Task.Success, output.([]byte))
-		if err != nil {
-			return err
+	if this.Task.Success != nil {
+		switch output.(type) {
+		case []byte:
+			err := zk.CreateOrSetBytes(this.zk, *this.Task.Success, output.([]byte))
+			if err != nil {
+				return err
+			}
+		case string:
+			err := zk.CreateOrSetString(this.zk, *this.Task.Success, output.(string))
+			if err != nil {
+				return err
+			}
+		default:
+			value, err := json.Marshal(output)
+			if err != nil {
+				return err
+			}
+			err = zk.CreateOrSetBytes(this.zk, *this.Task.Success, value)
+			if err != nil {
+				return err
+			}
 		}
-	case string:
-		err := zk.CreateOrSetString(this.zk, this.Task.Success, output.(string))
-		if err != nil {
-			return err
-		}
-	default:
-		value, err := json.Marshal(output)
-		if err != nil {
-			return err
-		}
-		err = zk.CreateOrSetBytes(this.zk, this.Task.Success, value)
-		if err != nil {
-			return err
-		}
+		this.Log("Success", "Result written to", this.Task.Success.Path())
 	}
-	this.Log("Success", "Result written to", this.Task.Success.Path())
 
 	now := time.Now()
 	this.Stats.Success = &now
-	err := zk.CreateOrSet(this.zk, this.Info, this.Stats)
-	if err != nil {
-		return err
-	}
+	this.TimestampExit = now
 
+	this.Announce() <- Announce{
+		Key:       "exit",
+		Value:     this.Stats,
+		Ephemeral: false,
+	}
 	this.Log("Success", "Completed")
 	return nil
 }
 
 func (this *Runtime) Error(error interface{}) error {
-	defer func() {
-		if this.Task.PrintErrWarning {
-			this.Log(fmt.Sprintf("????,],%d,%s,%s", time.Now().Unix(), this.Task.Name, this.Task.PrintErr))
-		} else {
-			this.Log(fmt.Sprintf("!!!!,],%d,%s,%s", time.Now().Unix(), this.Task.Name, this.Task.PrintErr))
-		}
-	}()
+	defer this.Log(this.build_message(this.templateError)...)
 
 	if this.zk == nil {
 		glog.Infoln("Not connected to zk.  Output not recorded")
 		return nil
 	}
-
 	if this.done {
 		return ErrStopped
 	}
-	switch error.(type) {
-	case []byte:
-		err := zk.CreateOrSetBytes(this.zk, this.Task.Error, error.([]byte))
-		if err != nil {
-			return err
+
+	if this.Task.Error != nil {
+		switch error.(type) {
+		case []byte:
+			err := zk.CreateOrSetBytes(this.zk, *this.Task.Error, error.([]byte))
+			if err != nil {
+				return err
+			}
+		case string:
+			err := zk.CreateOrSetString(this.zk, *this.Task.Error, error.(string))
+			if err != nil {
+				return err
+			}
+		default:
+			value, err := json.Marshal(error)
+			if err != nil {
+				return err
+			}
+			err = zk.CreateOrSetBytes(this.zk, *this.Task.Error, value)
+			if err != nil {
+				return err
+			}
 		}
-	case string:
-		err := zk.CreateOrSetString(this.zk, this.Task.Error, error.(string))
-		if err != nil {
-			return err
-		}
-	default:
-		value, err := json.Marshal(error)
-		if err != nil {
-			return err
-		}
-		err = zk.CreateOrSetBytes(this.zk, this.Task.Error, value)
-		if err != nil {
-			return err
-		}
+		this.Log("Error", "Error written to", this.Task.Error.Path())
 	}
-	this.Log("Error", "Error written to", this.Task.Error.Path())
 
 	now := time.Now()
 	this.Stats.Error = &now
-	err := zk.CreateOrSet(this.zk, this.Info, this.Stats)
-	if err != nil {
-		return err
-	}
+	this.TimestampExit = now
 
+	this.Announce() <- Announce{
+		Key:       "exit",
+		Value:     this.Stats,
+		Ephemeral: false,
+	}
 	this.Log("Error", "Stop")
 	return nil
 }

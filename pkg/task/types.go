@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/qorio/maestro/pkg/pubsub"
 	"github.com/qorio/maestro/pkg/registry"
+	"text/template"
 	"time"
 )
 
@@ -56,30 +57,37 @@ type Task struct {
 	Name TaskName `json:"name"`
 
 	// Optional namespace for task related announcements in the regstry.
-	AnnounceNamespace *registry.Path `json:"announce,omitempty"`
+	Namespace *registry.Path `json:"namespace,omitempty"`
 
 	// Optional registry paths to set success / failure signals
-	Info    registry.Path `json:"info,omitempty"`
-	Success registry.Path `json:"success,omitempty"`
-	Error   registry.Path `json:"error,omitempty"`
+	//	Info registry.Path `json:"info,omitempty"`
+
+	// Optional success / error == for signaling other watchers
+	Success *registry.Path `json:"success,omitempty"`
+	Error   *registry.Path `json:"error,omitempty"`
 
 	// Conditional execution
 	Trigger *Trigger `json:"trigger,omitempty"`
 
 	// Topics (e.g. mqtt://localhost:1281/aws-cli/124/stdout)
-	Status pubsub.Topic  `json:"status"`
-	Stdin  *pubsub.Topic `json:"stdin,omitempty"`
-	Stdout *pubsub.Topic `json:"stdout,omitempty"`
-	Stderr *pubsub.Topic `json:"stderr,omitempty"`
+	LogTopic pubsub.Topic  `json:"log,omitempty"`
+	Stdin    *pubsub.Topic `json:"stdin,omitempty"`
+	Stdout   *pubsub.Topic `json:"stdout,omitempty"`
+	Stderr   *pubsub.Topic `json:"stderr,omitempty"`
 
 	Runs int `json:"runs,omitempty"`
 
 	Stats TaskStats `json:"stats,omitempty"`
 
-	PrintPre        string `json:"print_pre,omitempty"`
-	PrintPost       string `json:"print_post,omitempty"`
-	PrintErr        string `json:"print_err,omitempty"`
-	PrintErrWarning bool   `json:"print_err_warning,omitempty"`
+	LogTemplateStart   *string `json:"log_template_start,omitempty"`
+	LogTemplateStop    *string `json:"log_template_stop,omitempty"`
+	LogTemplateSuccess *string `json:"log_template_success,omitempty"`
+	LogTemplateError   *string `json:"log_template_error,omitempty"`
+
+	templateStart   *template.Template
+	templateStop    *template.Template
+	templateSuccess *template.Template
+	templateError   *template.Template
 }
 
 // Written to the Info path of the task

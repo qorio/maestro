@@ -66,12 +66,12 @@ func (suite *TaskTests) TestTaskSuccess(c *C) {
 	c.Assert(err, Equals, nil)
 
 	task, err := (&Task{
-		Info:    info,
-		Success: success,
-		Error:   error,
-		Stdout:  stdout,
-		Stderr:  stderr,
-		Status:  *status,
+		Namespace: &info,
+		Success:   &success,
+		Error:     &error,
+		Stdout:    stdout,
+		Stderr:    stderr,
+		LogTopic:  *status,
 	}).Init(z)
 	c.Assert(err, Equals, nil)
 	c.Log("task=", task)
@@ -124,12 +124,12 @@ func (suite *TaskTests) TestTaskError(c *C) {
 	c.Assert(err, Equals, nil)
 
 	task, err := (&Task{
-		Info:    info,
-		Success: success,
-		Error:   error,
-		Stdout:  stdout,
-		Stderr:  stderr,
-		Status:  *status,
+		Namespace: &info,
+		Success:   &success,
+		Error:     &error,
+		Stdout:    stdout,
+		Stderr:    stderr,
+		LogTopic:  *status,
 	}).Init(z)
 	c.Assert(err, Equals, nil)
 	c.Log("task=", task)
@@ -185,12 +185,12 @@ func (suite *TaskTests) TestTaskExec(c *C) {
 	c.Assert(err, Equals, nil)
 
 	task, err := (&Task{
-		Info:    info,
-		Success: success,
-		Error:   error,
-		Stdout:  stdout,
-		Status:  *status,
-		Cmd:     &exec,
+		Namespace: &info,
+		Success:   &success,
+		Error:     &error,
+		Stdout:    stdout,
+		LogTopic:  *status,
+		Cmd:       &exec,
 	}).Init(z)
 	c.Assert(err, Equals, nil)
 	c.Log("task=", task)
@@ -227,13 +227,13 @@ func (suite *TaskTests) TestTaskCmdStdin(c *C) {
 	c.Assert(err, Equals, nil)
 
 	task, err := (&Task{
-		Info:    info,
-		Success: success,
-		Error:   error,
-		Stdout:  stdout,
-		Stdin:   stdin,
-		Status:  *status,
-		Cmd:     &exec,
+		Namespace: &info,
+		Success:   &success,
+		Error:     &error,
+		Stdout:    stdout,
+		Stdin:     stdin,
+		LogTopic:  *status,
+		Cmd:       &exec,
 	}).Init(z)
 	c.Assert(err, Equals, nil)
 	c.Log("task=", task)

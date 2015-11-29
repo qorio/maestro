@@ -17,7 +17,7 @@ var _ = Suite(&TypesTests{})
 func (suite *TypesTests) TestUnmarshalMarshal(c *C) {
 
 	input := `{
-		"info" : "/{{.Domain}}/deployment/{{.Id}}/db-migrate",
+		"namespace" : "/{{.Domain}}/deployment/{{.Id}}/db-migrate",
 		"trigger" : {
                     "registry": {
 		        "timeout" : "300s",
@@ -37,11 +37,11 @@ func (suite *TypesTests) TestUnmarshalMarshal(c *C) {
 	err := json.Unmarshal([]byte(input), t)
 	c.Assert(err, Equals, nil)
 
-	c.Assert(t.Info, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-migrate"))
+	c.Assert(*t.Namespace, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-migrate"))
 	c.Assert(t.Trigger.Registry.Members.Top, Equals, Path("/{{.Domain}}/passport-db-master/containers"))
 	c.Assert(time.Duration(*t.Trigger.Registry.Timeout).Seconds(), Equals, float64(300))
-	c.Assert(t.Success, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-seed"))
-	c.Assert(t.Error, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/exception"))
+	c.Assert(*t.Success, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-seed"))
+	c.Assert(*t.Error, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/exception"))
 
 	// marshal
 	m, err := json.Marshal(t)
@@ -52,11 +52,11 @@ func (suite *TypesTests) TestUnmarshalMarshal(c *C) {
 	err = json.Unmarshal(m, t)
 	c.Assert(err, Equals, nil)
 
-	c.Assert(t.Info, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-migrate"))
+	c.Assert(*t.Namespace, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-migrate"))
 	c.Assert(t.Trigger.Registry.Members.Top, Equals, Path("/{{.Domain}}/passport-db-master/containers"))
 	c.Assert(time.Duration(*t.Trigger.Registry.Timeout).Seconds(), Equals, float64(300))
-	c.Assert(t.Success, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-seed"))
-	c.Assert(t.Error, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/exception"))
+	c.Assert(*t.Success, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/db-seed"))
+	c.Assert(*t.Error, Equals, Path("/{{.Domain}}/deployment/{{.Id}}/exception"))
 
 	c.Log(string(m))
 
