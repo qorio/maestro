@@ -176,7 +176,7 @@ func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
 
 func (this *Runtime) Stop() {
 
-	this.Log(this.build_message(this.templateStop))
+	this.Log(this.build_message(this.templateStop)...)
 
 	this.lock.Lock()
 	defer this.lock.Unlock()
