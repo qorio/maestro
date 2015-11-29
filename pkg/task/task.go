@@ -36,8 +36,8 @@ var (
 type Runtime struct {
 	Task
 
-	TimestampStart time.Time
-	TimestampExit  time.Time
+	TimestampStart int64
+	TimestampExit  int64
 
 	zk zk.ZK
 
@@ -106,30 +106,17 @@ func (this *Task) Validate() error {
 		}
 	}
 
-	var err error
-	if this.LogTemplateStart != nil {
-		this.templateStart, err = template.New(*this.LogTemplateStart).Parse(*this.LogTemplateStart)
-		if err != nil {
-			return err
-		}
+	if err := parse_template(this.LogTemplateStart, &this.templateStart); err != nil {
+		return err
 	}
-	if this.LogTemplateStop != nil {
-		this.templateStop, err = template.New(*this.LogTemplateStop).Parse(*this.LogTemplateStop)
-		if err != nil {
-			return err
-		}
+	if err := parse_template(this.LogTemplateStop, &this.templateStop); err != nil {
+		return err
 	}
-	if this.LogTemplateSuccess != nil {
-		this.templateSuccess, err = template.New(*this.LogTemplateSuccess).Parse(*this.LogTemplateSuccess)
-		if err != nil {
-			return err
-		}
+	if err := parse_template(this.LogTemplateSuccess, &this.templateSuccess); err != nil {
+		return err
 	}
-	if this.LogTemplateError != nil {
-		this.templateError, err = template.New(*this.LogTemplateError).Parse(*this.LogTemplateError)
-		if err != nil {
-			return err
-		}
+	if err := parse_template(this.LogTemplateError, &this.templateError); err != nil {
+		return err
 	}
 	return nil
 }
@@ -165,8 +152,7 @@ func (this *Task) Init(zkc zk.ZK, options ...interface{}) (*Runtime, error) {
 		return in, strings.Index(in, "#bye") != 0
 	}
 
-	now := time.Now()
-	task.Stats.Started = &now
+	task.Stats.Started = time.Now().Unix()
 
 	task.set_defaults()
 	task.start_announcer()
@@ -315,6 +301,18 @@ func (this *Runtime) set_defaults() {
 	}
 }
 
+func parse_template(t *string, tt **template.Template) error {
+	if t == nil {
+		return nil
+	}
+	p, err := template.New(*t).Parse(*t)
+	if err != nil {
+		return err
+	}
+	*tt = p
+	return nil
+}
+
 func (this *Runtime) build_message(t *template.Template) []interface{} {
 	if t == nil {
 		return []interface{}{}
@@ -328,7 +326,7 @@ func (this *Runtime) build_message(t *template.Template) []interface{} {
 }
 
 func (this *Runtime) Start() (chan error, error) {
-	this.TimestampStart = time.Now()
+	this.TimestampStart = this.Now()
 
 	if _, _, err := this.start_streams(); err != nil {
 		return nil, err
@@ -345,6 +343,10 @@ func (this *Runtime) Start() (chan error, error) {
 		return this.exec()
 	}
 	return nil, nil
+}
+
+func (this *Runtime) Now() int64 {
+	return time.Now().Unix()
 }
 
 // Announcer will publish to registry at the client's request.
@@ -597,8 +599,8 @@ func (this *Runtime) Success(output interface{}) error {
 		this.Log("Success", "Result written to", this.Task.Success.Path())
 	}
 
-	now := time.Now()
-	this.Stats.Success = &now
+	now := this.Now()
+	this.Stats.Success = now
 	this.TimestampExit = now
 
 	this.Announce() <- Announce{
@@ -646,8 +648,8 @@ func (this *Runtime) Error(error interface{}) error {
 		this.Log("Error", "Error written to", this.Task.Error.Path())
 	}
 
-	now := time.Now()
-	this.Stats.Error = &now
+	now := this.Now()
+	this.Stats.Error = now
 	this.TimestampExit = now
 
 	this.Announce() <- Announce{

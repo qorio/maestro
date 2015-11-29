@@ -5,7 +5,6 @@ import (
 	"github.com/qorio/maestro/pkg/pubsub"
 	"github.com/qorio/maestro/pkg/registry"
 	"text/template"
-	"time"
 )
 
 var (
@@ -92,8 +91,8 @@ type Task struct {
 
 // Written to the Info path of the task
 type TaskStats struct {
-	Started   *time.Time `json:"started,omitempty"`
-	Triggered *time.Time `json:"triggered,omitempty"`
-	Success   *time.Time `json:"success,omitempty"`
-	Error     *time.Time `json:"error,omitempty"`
+	Started   int64 `json:"started,omitempty"`
+	Triggered int64 `json:"triggered,omitempty"`
+	Success   int64 `json:"success,omitempty"`
+	Error     int64 `json:"error,omitempty"`
 }
