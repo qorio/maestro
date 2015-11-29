@@ -55,6 +55,8 @@ type Runtime struct {
 
 	stdoutBuff       *bytes.Buffer
 	stdinInterceptor func(string) (string, bool)
+
+	Status string
 }
 
 func (this *Task) Copy() (*Task, error) {
@@ -264,7 +266,9 @@ func (this *Runtime) Log(m ...interface{}) {
 	if ok {
 		source = fmt.Sprintf("%s:%d", file, line)
 	}
-	this.status <- []byte(fmt.Sprint(m...))
+
+	msg := fmt.Sprint(m...)
+	this.status <- []byte(msg)
 	glog.Infoln(source, m)
 }
 
@@ -318,7 +322,13 @@ func (this *Runtime) build_message(t *template.Template) []interface{} {
 		return []interface{}{}
 	}
 	var buff bytes.Buffer
-	err := t.Execute(&buff, this)
+	err := t.Execute(&buff, map[string]interface{}{
+		"id":     this.Task.Id,
+		"name":   this.Task.Name,
+		"start":  this.TimestampStart,
+		"exit":   this.TimestampExit,
+		"status": this.Status,
+	})
 	if err != nil {
 		return []interface{}{}
 	}
@@ -327,12 +337,27 @@ func (this *Runtime) build_message(t *template.Template) []interface{} {
 
 func (this *Runtime) Start() (chan error, error) {
 	this.TimestampStart = this.Now()
+	this.Status = fmt.Sprint("Starting ", this.Task.Cmd.Path)
+
+	go func() {
+		for {
+			m := <-this.status
+			if m == nil {
+				break
+			}
+			if c, err := this.Task.LogTopic.Broker().PubSub(this.Id, this.options); err == nil {
+				c.Publish(this.Task.LogTopic, m)
+			} else {
+				glog.Warningln("Cannot publish:", this.Task.LogTopic.String(), "Err=", err)
+			}
+		}
+	}()
+
+	this.Log(this.build_message(this.templateStart)...)
 
 	if _, _, err := this.start_streams(); err != nil {
 		return nil, err
 	}
-
-	this.Log(this.build_message(this.templateStart)...)
 
 	if err := this.block_on_triggers(); err == zk.ErrTimeout {
 		return nil, ErrTimeout
@@ -462,9 +487,11 @@ func (this *Runtime) exec() (chan error, error) {
 	process_done := make(chan error)
 	go func() {
 		cmd.Start()
+		this.Status = "Started."
 
 		// Wait for cmd to complete even if we have no more stdout/stderr
 		if err := cmd.Wait(); err != nil {
+			this.Status = err.Error()
 			this.Error(err.Error())
 			process_done <- err
 			return
@@ -477,7 +504,8 @@ func (this *Runtime) exec() (chan error, error) {
 			return
 		}
 
-		glog.Infoln("Process pid=", ps.Pid(), "Exited=", ps.Exited(), "Success=", ps.Success())
+		this.Status = fmt.Sprint("Process pid=", ps.Pid(), "Exited=", ps.Exited(), "Success=", ps.Success())
+		glog.Infoln(this.Status)
 
 		if !ps.Success() {
 			this.Error(ErrExecFailed.Error())
@@ -511,19 +539,6 @@ func (this *Runtime) start_streams() (stdout, stderr chan<- []byte, err error) {
 	if this.done {
 		return nil, nil, ErrStopped
 	}
-	go func() {
-		for {
-			m := <-this.status
-			if m == nil {
-				break
-			}
-			if c, err := this.Task.LogTopic.Broker().PubSub(this.Id, this.options); err == nil {
-				c.Publish(this.Task.LogTopic, m)
-			} else {
-				glog.Warningln("Cannot publish:", this.Task.LogTopic.String(), "Err=", err)
-			}
-		}
-	}()
 	if this.stdout != nil {
 		glog.Infoln("Starting stream for stdout:", this.Task.Stdout.String())
 		go func() {
