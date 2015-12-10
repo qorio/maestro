@@ -42,7 +42,7 @@ test-all:
 
 TAG:=`git describe --abbrev=0 --tags`
 NOW:=`date -u +%Y-%m-%d_%H-%M-%S`
-LDFLAGS:=-X main.BUILD_VERSION $(TAG) -X main.BUILD_TIMESTAMP $(NOW)
+LDFLAGS:=-X main.BUILD_VERSION=$(TAG) -X main.BUILD_TIMESTAMP=$(NOW)
 TARGET:=main/pubsubsh.go
 
 pubsubsh:
