@@ -31,15 +31,19 @@ func NewFS(zc ZK, path registry.Path) *FS {
 	}
 }
 
-func (this *FS) Conn() *fuse.Conn {
-	return this.fuse_conn
-}
-
 func (this *FS) Unmount() error {
 	if this.mountpoint != nil {
 		return fuse.Unmount(*this.mountpoint)
 	}
 	return nil
+}
+
+func (this *FS) Shutdown() error {
+	if err := this.Unmount(); err == nil {
+		return this.fuse_conn.Close()
+	} else {
+		return err
+	}
 }
 
 func (this *FS) Mount(dir string, perm os.FileMode) error {
@@ -87,10 +91,8 @@ func fs_node(zc ZK, n *Node, p registry.Path, d *Dir) *fsNode {
 }
 
 func (this *FS) Root() (fs.Node, error) {
-	glog.Infoln("Root")
 	if this.node == nil {
 		if n, err := Follow(this.conn, this.Path); err != nil {
-			glog.Infoln(">>>>>>", this.Path, err)
 			return nil, err
 		} else {
 			this.node = n
