@@ -21,6 +21,45 @@ type fsNode struct {
 
 type FS struct {
 	*fsNode
+	fuse_conn  *fuse.Conn
+	mountpoint *string
+}
+
+func NewFS(zc ZK, path registry.Path) *FS {
+	return &FS{
+		fsNode: fs_node(zc, nil, path, nil),
+	}
+}
+
+func (this *FS) Conn() *fuse.Conn {
+	return this.fuse_conn
+}
+
+func (this *FS) Unmount() error {
+	if this.mountpoint != nil {
+		return fuse.Unmount(*this.mountpoint)
+	}
+	return nil
+}
+
+func (this *FS) Mount(dir string, perm os.FileMode) error {
+	if err := os.MkdirAll(dir, perm); err != nil {
+		return err
+	}
+	fc, err := fuse.Mount(dir)
+	if err != nil {
+		return err
+	}
+	this.fuse_conn = fc
+	this.mountpoint = &dir
+	return fs.Serve(this.fuse_conn, this)
+}
+
+func (this *FS) Wait() error {
+	if this.fuse_conn != nil {
+		<-this.fuse_conn.Ready
+	}
+	return this.fuse_conn.MountError
 }
 
 type Dir struct {
