@@ -6,6 +6,10 @@
 	],
 	"Deps": [
 		{
+			"ImportPath": "bazil.org/fuse",
+			"Rev": "e1ba3783de6cb92c16f72802a4bb94fe639a8049"
+		},
+		{
 			"ImportPath": "code.google.com/p/go-uuid/uuid",
 			"Comment": "null-15",
 			"Rev": "35bc42037350f0078e3c974c6ea690f1926603ab"
@@ -44,6 +48,10 @@
 		{
 			"ImportPath": "golang.org/x/crypto/ssh",
 			"Rev": "c84e1f8e3a7e322d497cd16c0e8a13c7e127baf3"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "5aa7325eaa14d7ed4b520f40d58adf2834c8de01"
 		},
 		{
 			"ImportPath": "gopkg.in/check.v1",
