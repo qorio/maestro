@@ -3,6 +3,7 @@ package mqtt
 import (
 	"errors"
 	MQTT "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git"
+	"github.com/golang/glog"
 	"github.com/qorio/maestro/pkg/pubsub"
 	"time"
 )
@@ -24,6 +25,12 @@ func init() {
 	})
 }
 
+type ClientOptions struct {
+	KeepAlive            time.Duration `json:"keep_alive_interval,omitempty"`
+	MaxReconnectInterval time.Duration `json:"max_reconnect_interval,omitempty"`
+	AutoReconnect        bool          `json:"auto_reconnect"`
+}
+
 type Client struct {
 	BrokerAddr       string        `json:"broker_addr"`
 	ClientId         string        `json:"client_id"`
@@ -34,9 +41,39 @@ type Client struct {
 }
 
 func Connect(id, addr string, options ...interface{}) (pubsub.PubSub, error) {
-	opts := MQTT.NewClientOptions()
-	opts.AddBroker("tcp://" + addr)
-	opts.SetClientID(id)
+	opts := MQTT.NewClientOptions().AddBroker("tcp://" + addr).SetClientID(id)
+	// some default values
+	opts.SetAutoReconnect(true)
+	opts.SetKeepAlive(10 * time.Minute)
+	opts.SetMaxReconnectInterval(10 * time.Second)
+	opts.SetConnectionLostHandler(func(cl *MQTT.Client, err error) {
+		glog.Warningln("MQTT CONNECTION LOST", cl, "Err=", err)
+		// TODO - send message over channel
+	})
+	opts.SetOnConnectHandler(func(cl *MQTT.Client) {
+		glog.Infoln("MQTT CONNECTED", cl)
+		// TODO - send message over channel
+	})
+	var clientOptions *ClientOptions
+	if len(options) > 0 {
+		switch options[0].(type) {
+		case *ClientOptions:
+			clientOptions = options[0].(*ClientOptions)
+		case ClientOptions:
+			copy := options[0].(ClientOptions)
+			clientOptions = &copy
+		}
+		if clientOptions != nil {
+			opts.SetAutoReconnect(clientOptions.AutoReconnect)
+			if clientOptions.MaxReconnectInterval.Seconds() > 0 {
+				opts.SetMaxReconnectInterval(clientOptions.MaxReconnectInterval)
+			}
+			if clientOptions.KeepAlive.Seconds() > 0 {
+				opts.SetKeepAlive(clientOptions.KeepAlive)
+			}
+		}
+	}
+
 	c := MQTT.NewClient(opts)
 	wait := c.Connect()
 	ready := wait.Wait()

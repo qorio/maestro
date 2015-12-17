@@ -2,4 +2,4 @@
 all: test-mqtt
 
 test-mqtt:
-	go test ./... -check.vv -v
+	go test ./... -check.vv -v --logtostderr
