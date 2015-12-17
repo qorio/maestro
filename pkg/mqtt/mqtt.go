@@ -5,6 +5,7 @@ import (
 	MQTT "git.eclipse.org/gitroot/paho/org.eclipse.paho.mqtt.golang.git"
 	"github.com/golang/glog"
 	"github.com/qorio/maestro/pkg/pubsub"
+	"sync"
 	"time"
 )
 
@@ -40,6 +41,23 @@ type Client struct {
 	client           *MQTT.Client
 }
 
+var (
+	subscribed_topics_by_client_lock sync.Mutex
+	subscribed_topics_by_client      = make(map[*MQTT.Client]map[string]chan []byte)
+	pubsubclient_by_client           = make(map[*MQTT.Client]*Client)
+)
+
+func track_topic(c *Client, topic string, out chan []byte) {
+	defer subscribed_topics_by_client_lock.Unlock()
+	subscribed_topics_by_client_lock.Lock()
+
+	if _, has := subscribed_topics_by_client[c.client]; !has {
+		subscribed_topics_by_client[c.client] = make(map[string]chan []byte)
+	}
+	subscribed_topics_by_client[c.client][topic] = out
+	pubsubclient_by_client[c.client] = c
+}
+
 func Connect(id, addr string, options ...interface{}) (pubsub.PubSub, error) {
 	opts := MQTT.NewClientOptions().AddBroker("tcp://" + addr).SetClientID(id)
 	// some default values
@@ -52,7 +70,22 @@ func Connect(id, addr string, options ...interface{}) (pubsub.PubSub, error) {
 	})
 	opts.SetOnConnectHandler(func(cl *MQTT.Client) {
 		glog.Infoln("MQTT CONNECTED", cl)
-		// TODO - send message over channel
+		if set, has := subscribed_topics_by_client[cl]; has {
+			for topic, out := range set {
+				// Re-subscribe
+				qos := pubsubclient_by_client[cl].QoS
+				timeout := pubsubclient_by_client[cl].SubscribeTimeout
+
+				glog.Infoln("RESUBSCRIBE", topic, "QoS=", qos)
+				token := cl.Subscribe(topic, qos, func(cl *MQTT.Client, m MQTT.Message) {
+					out <- m.Payload()
+				})
+				token.WaitTimeout(timeout)
+				if token.Error() != nil {
+					glog.Warningln("RE-SUBSCRIBE TIMEOUT", "Topic=", topic, "Client=", cl, "Err=", token.Error())
+				}
+			}
+		}
 	})
 	var clientOptions *ClientOptions
 	if len(options) > 0 {
@@ -118,6 +151,8 @@ func (this *Client) Subscribe(topic pubsub.Topic) (<-chan []byte, error) {
 	if token.Error() != nil {
 		return nil, token.Error()
 	}
+
+	track_topic(this, topic.Path(), out)
 	return out, nil
 }
 
