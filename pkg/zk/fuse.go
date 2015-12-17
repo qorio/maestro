@@ -33,7 +33,9 @@ func NewFS(zc ZK, path registry.Path) *FS {
 
 func (this *FS) Unmount() error {
 	if this.mountpoint != nil {
-		return fuse.Unmount(*this.mountpoint)
+		err := fuse.Unmount(*this.mountpoint)
+		glog.V(100).Infoln("Unmount dir=", this.mountpoint, "Err=", err)
+		return err
 	}
 	return nil
 }
@@ -51,6 +53,7 @@ func (this *FS) Mount(dir string, perm os.FileMode) error {
 		return err
 	}
 	fc, err := fuse.Mount(dir)
+	glog.V(100).Infoln("Mounting directory", dir, "Err=", err)
 	if err != nil {
 		return err
 	}
@@ -101,6 +104,7 @@ func (this *FS) Root() (fs.Node, error) {
 	n := &Dir{
 		fsNode: fs_node(this.conn, this.node, this.Path, nil),
 	}
+	glog.V(100).Infoln("Root=", this.Path, "Node=", this.node, "Dir=", n)
 	return n, nil
 }
 
@@ -117,6 +121,7 @@ func (d *Dir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	var result []fuse.Dirent
 
 	if children, err := d.node.Children(); err != nil {
+		glog.Warningln("Error reading children of", d.node)
 		return nil, err
 	} else {
 		for _, c := range children {
@@ -129,6 +134,7 @@ func (d *Dir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 				de.Type = fuse.DT_Dir
 			}
 			result = append(result, de)
+			glog.V(100).Infoln("Dirent=", de, "node=", c)
 		}
 		return result, nil
 	}
