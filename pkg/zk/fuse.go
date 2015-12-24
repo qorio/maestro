@@ -52,7 +52,7 @@ func (this *FS) Mount(dir string, perm os.FileMode) error {
 	if err := os.MkdirAll(dir, perm); err != nil {
 		return err
 	}
-	fc, err := fuse.Mount(dir)
+	fc, err := fuse.Mount(dir, fuse.AllowRoot())
 	glog.V(100).Infoln("Mounting directory", dir, "Err=", err)
 	if err != nil {
 		return err
